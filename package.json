@@ -5,7 +5,11 @@
 		"check:write": "biome check --write .",
 		"format": "biome format --write .",
 		"lint": "biome lint .",
+		"prepare": "husky",
 		"typecheck": "tsc --project tsconfig.json"
+	},
+	"lint-staged": {
+		"*": "biome check --write --files-ignore-unknown=true --no-errors-on-unmatched"
 	},
 	"workspaces": [
 		"apps/*",
@@ -15,6 +19,8 @@
 		"@biomejs/biome": "2.5.11",
 		"@orbit/tsconfig": "workspace:*",
 		"@types/bun": "^1.4.0",
+		"husky": "^9.1.7",
+		"lint-staged": "^17.4.1",
 		"typescript": "^7.1.0-dev.20260902.1"
 	}
 }
