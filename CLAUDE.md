@@ -1,0 +1,2 @@
+- Interview the user using the `AskUserQuestion` tool to have them decide all business logic.
+- Do atomic commits with conventional commit format.
