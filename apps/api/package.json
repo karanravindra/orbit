@@ -1,0 +1,30 @@
+{
+	"name": "@orbit/api",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./client": "./src/client.ts"
+	},
+	"scripts": {
+		"dev": "bun run --hot src/index.ts",
+		"start": "bun run src/index.ts",
+		"typecheck": "tsc --noEmit",
+		"auth:generate": "bun --bun x auth generate --config src/lib/auth.ts --output ../../packages/db/src/schema/auth.ts --yes && biome check --write ../../packages/db/src/schema/auth.ts"
+	},
+	"dependencies": {
+		"@better-auth/drizzle-adapter": "1.7.7",
+		"@orbit/db": "workspace:*",
+		"better-auth": "1.7.7",
+		"drizzle-orm": "1.0.0-rc.4",
+		"hono": "^4.13.13",
+		"zod": "^4.6.5"
+	},
+	"devDependencies": {
+		"@orbit/tsconfig": "workspace:*",
+		"@types/bun": "latest",
+		"auth": "1.7.7"
+	},
+	"peerDependencies": {
+		"typescript": "^7"
+	}
+}
