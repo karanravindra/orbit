@@ -12,6 +12,9 @@
 	},
 	"scripts": {
 		"check": "biome check .",
+		"typecheck": "bun run --filter '*' typecheck",
+		"db:generate": "bun run --filter @orbit/db generate",
+		"db:migrate": "bun run --filter @orbit/db migrate",
 		"prepare": "lefthook install"
 	}
 }

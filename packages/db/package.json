@@ -1,0 +1,25 @@
+{
+	"name": "@orbit/db",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./schema": "./src/schema/index.ts"
+	},
+	"scripts": {
+		"generate": "bun --bun drizzle-kit generate",
+		"migrate": "bun --bun drizzle-kit migrate",
+		"studio": "bun --bun drizzle-kit studio",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@orbit/tsconfig": "workspace:*",
+		"drizzle-kit": "1.0.0-rc.4"
+	},
+	"peerDependencies": {
+		"typescript": "^7"
+	},
+	"dependencies": {
+		"drizzle-orm": "1.0.0-rc.4"
+	}
+}
