@@ -1,0 +1,19 @@
+{
+	"name": "@orbit/tsconfig",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"files": [
+		"tsconfig.json"
+	],
+	"exports": {
+		".": "./tsconfig.json",
+		"./tsconfig.json": "./tsconfig.json"
+	},
+	"dependencies": {
+		"@types/bun": "1.4.2"
+	},
+	"peerDependencies": {
+		"typescript": "^7"
+	}
+}
