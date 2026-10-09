@@ -1,0 +1,17 @@
+{
+	"name": "orbit",
+	"private": true,
+	"type": "module",
+	"workspaces": [
+		"packages/*"
+	],
+	"devDependencies": {
+		"@biomejs/biome": "2.5.15",
+		"lefthook": "^2.2.1",
+		"typescript": "^7"
+	},
+	"scripts": {
+		"check": "biome check .",
+		"prepare": "lefthook install"
+	}
+}

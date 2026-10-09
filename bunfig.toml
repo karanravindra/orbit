@@ -1,0 +1,4 @@
+# Hoist every workspace dependency into the root node_modules so there is one
+# copy of typescript and @types/bun that all packages resolve to.
+[install]
+linker = "hoisted"
