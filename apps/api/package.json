@@ -8,6 +8,7 @@
 	"scripts": {
 		"dev": "bun run --hot src/index.ts",
 		"start": "bun run src/index.ts",
+		"test": "bun test",
 		"typecheck": "tsc --noEmit",
 		"auth:generate": "bun --bun x auth generate --config src/lib/auth.ts --output ../../packages/db/src/schema/auth.ts --yes && biome check --write ../../packages/db/src/schema/auth.ts"
 	},
