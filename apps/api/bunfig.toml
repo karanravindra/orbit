@@ -1,0 +1,4 @@
+# Stub third-party APIs for every `bun test` run in this package, not just
+# `bun run test`, so tests never hit the network.
+[test]
+preload = ["./src/tests/setup.ts"]
