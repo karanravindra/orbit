@@ -10,7 +10,8 @@ import { env } from "./env";
 // Routes are chained so their types flow into AppType for the RPC client.
 const app = new Hono()
 	.use(requestId())
-	.use(logger())
+	// Request lines would bury test output.
+	.use(logger(env.NODE_ENV === "test" ? () => {} : console.log))
 	.use(secureHeaders())
 	.use(
 		cors({
