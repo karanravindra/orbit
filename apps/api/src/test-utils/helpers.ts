@@ -1,6 +1,6 @@
 import { expect } from "bun:test";
-import { user, verification } from "@orbit/db/schema";
-import { inArray } from "drizzle-orm";
+import { organization, user, verification } from "@orbit/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import app from "../app";
 import { db } from "../db";
 import { emailSender, MemoryEmailSender } from "../email";
@@ -131,4 +131,13 @@ export async function getSession(cookie: string) {
 			expiresAt: string;
 		};
 	} | null;
+}
+
+export async function personalOrganization(userId: string) {
+	const [org] = await db
+		.select()
+		.from(organization)
+		.where(eq(organization.personalOwnerId, userId));
+	if (!org) throw new Error(`No personal organization for ${userId}`);
+	return org;
 }

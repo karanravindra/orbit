@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { testClient } from "hono/testing";
-import app from "../app";
+import app from "./app";
 
 const client = testClient(app);
 
