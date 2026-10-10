@@ -3,10 +3,10 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
-import { notFound, onError } from "./errors";
 import { auth } from "./lib/auth";
 import { env } from "./lib/env";
 import { health } from "./routes/health";
+import { notFound, onError } from "./utils/errors";
 
 // Routes are chained so their types flow into AppType for the RPC client.
 const app = new Hono()
