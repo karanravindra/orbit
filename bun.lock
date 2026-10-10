@@ -22,7 +22,7 @@
       },
       "devDependencies": {
         "@orbit/tsconfig": "workspace:*",
-        "@types/bun": "latest",
+        "@types/bun": "1.4.2",
         "auth": "1.7.7",
       },
       "peerDependencies": {
