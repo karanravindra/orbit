@@ -247,6 +247,13 @@ describe("invitations and roles", () => {
 		});
 	});
 
+	test("an owner invitation is refused as such even from a member", async () => {
+		// The owner-role check runs before the inviter's role is checked.
+		const res = await invite(alice, orgId, bob.email, "owner");
+		expect(res.status).toBe(403);
+		expect(await res.json()).toMatchObject({ code: "CANNOT_INVITE_AS_OWNER" });
+	});
+
 	test("an owner invitation can't be accepted", async () => {
 		// Not creatable through the API; forced here to exercise the accept hook.
 		const id = crypto.randomUUID();

@@ -6,6 +6,9 @@ import {
 	ownerAc,
 } from "better-auth/plugins/organization/access";
 
+export const OWNER_ROLE = "owner";
+export const ADMIN_ROLE = "admin";
+
 // Organization permissions. App resources go in `statements` so org admins can
 // grant them through custom roles (dynamic access control).
 const statements = {
@@ -21,3 +24,14 @@ export const roles = {
 	admin: ac.newRole(adminAc.statements),
 	member: ac.newRole(memberAc.statements),
 };
+
+// Role strings may hold several comma-separated roles; request bodies may also
+// send an array whose elements hold commas. Matches Better Auth's own parsing
+// so a role can't slip past these checks and still be stored.
+export function parseRoles(role: unknown): string[] {
+	const list = Array.isArray(role) ? role : [role ?? ""];
+	return list
+		.flatMap((r) => String(r).split(","))
+		.map((r) => r.trim())
+		.filter(Boolean);
+}
