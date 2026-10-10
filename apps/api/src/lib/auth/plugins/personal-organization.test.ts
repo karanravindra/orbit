@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { member, organization, team, user } from "@orbit/db/schema";
 import { eq } from "drizzle-orm";
-import { db } from "../../db";
 import {
 	cookiesFrom,
 	createUserTracker,
@@ -11,7 +10,8 @@ import {
 	type SignedInUser,
 	signUpVerified,
 	uniqueEmail,
-} from "../../test-utils/helpers";
+} from "../../../test-utils/helpers";
+import { db } from "../../db";
 
 // Requires the orbit_test database with migrations applied (bun run test:migrate).
 const users = createUserTracker();

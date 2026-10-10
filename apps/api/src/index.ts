@@ -1,6 +1,6 @@
 import app from "./app";
-import { db } from "./db";
-import { env } from "./env";
+import { db } from "./lib/db";
+import { env } from "./lib/env";
 
 const server = Bun.serve({ port: env.PORT, fetch: app.fetch });
 

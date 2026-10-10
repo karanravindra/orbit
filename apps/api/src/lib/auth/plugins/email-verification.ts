@@ -3,12 +3,12 @@ import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import type { EmailOTPOptions } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
-import { db } from "../../db";
 import {
 	emailSender,
 	passwordResetOtpEmail,
 	verificationOtpEmail,
-} from "../../email";
+} from "../../../email";
+import { db } from "../../db";
 import { EMAIL_VERIFICATION_ERROR_CODES as ERRORS } from "../errors";
 
 // In seconds, like Better Auth's options.

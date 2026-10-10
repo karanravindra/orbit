@@ -9,7 +9,7 @@ import {
 	signUpVerified,
 	strongPassword,
 	uniqueEmail,
-} from "../../test-utils/helpers";
+} from "../../../test-utils/helpers";
 import { auth } from "..";
 
 // Requires the orbit_test database with migrations applied (bun run test:migrate).

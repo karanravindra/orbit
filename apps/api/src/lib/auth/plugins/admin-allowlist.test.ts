@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { organization, user } from "@orbit/db/schema";
 import { eq } from "drizzle-orm";
-import { db } from "../../db";
-import { env } from "../../env";
 import {
 	cookiesFrom,
 	createUserTracker,
@@ -13,7 +11,9 @@ import {
 	signUpVerified,
 	strongPassword,
 	uniqueEmail,
-} from "../../test-utils/helpers";
+} from "../../../test-utils/helpers";
+import { db } from "../../db";
+import { env } from "../../env";
 import { auth } from "..";
 
 // Requires the orbit_test database with migrations applied (bun run test:migrate).

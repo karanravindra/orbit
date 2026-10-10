@@ -9,8 +9,8 @@ import {
 	lastLoginMethod,
 	organization,
 } from "better-auth/plugins";
+import { emailSender, organizationInvitationEmail } from "../../email";
 import { db } from "../db";
-import { emailSender, organizationInvitationEmail } from "../email";
 import { env } from "../env";
 import { adminAllowlist } from "./plugins/admin-allowlist";
 import {

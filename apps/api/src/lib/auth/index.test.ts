@@ -8,8 +8,11 @@ import {
 	signUpVerified,
 	strongPassword,
 	uniqueEmail,
-} from "../test-utils/helpers";
-import { BREACHED_PASSWORDS, FAILING_CAPTCHA_TOKEN } from "../test-utils/setup";
+} from "../../test-utils/helpers";
+import {
+	BREACHED_PASSWORDS,
+	FAILING_CAPTCHA_TOKEN,
+} from "../../test-utils/setup";
 
 // Requires the orbit_test database with migrations applied (bun run test:migrate).
 const users = createUserTracker();

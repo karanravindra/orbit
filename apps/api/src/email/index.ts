@@ -1,4 +1,4 @@
-import { env } from "../env";
+import { env } from "../lib/env";
 import { ConsoleEmailSender } from "./console";
 import { MemoryEmailSender } from "./memory";
 import type { EmailSender } from "./types";
