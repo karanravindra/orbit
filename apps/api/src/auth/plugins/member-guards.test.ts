@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { invitation, member } from "@orbit/db/schema";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
+import { env } from "../../env";
 import {
 	createUserTracker,
 	getSession,
@@ -87,7 +88,7 @@ describe("invitations and roles", () => {
 		const email = outbox.latest(alice.email);
 		expect(email?.subject).toBe("Join Owner's workspace on Orbit");
 		expect(email?.text).toContain(
-			`http://localhost:5173/accept-invitation?id=${invitation.id}`,
+			new URL(`/accept-invitation?id=${invitation.id}`, env.APP_URL).href,
 		);
 
 		aliceMemberId = await accept(alice, invitation.id);

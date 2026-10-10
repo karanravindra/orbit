@@ -4,8 +4,12 @@ import { eq, inArray } from "drizzle-orm";
 import app from "../app";
 import { db } from "../db";
 import { emailSender, MemoryEmailSender } from "../email";
+import { env } from "../env";
 
-export const origin = "http://localhost:5173";
+const [webOrigin] = env.CORS_ORIGINS;
+if (!webOrigin) throw new Error("Tests need CORS_ORIGINS (see .env.test)");
+// Requests come from the web app, whose origin CORS and Better Auth trust.
+export const origin: string = webOrigin;
 
 // The token Turnstile test site keys produce; accepted by the test secret.
 export const CAPTCHA_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
