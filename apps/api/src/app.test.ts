@@ -15,7 +15,10 @@ describe("app", () => {
 	test("unknown routes return a JSON 404", async () => {
 		const res = await app.request("/nope");
 		expect(res.status).toBe(404);
-		expect(await res.json()).toEqual({ error: "Not Found" });
+		expect(await res.json()).toEqual({
+			code: "NOT_FOUND",
+			message: "Not Found",
+		});
 	});
 
 	test("sets request id and security headers", async () => {
