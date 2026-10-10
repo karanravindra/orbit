@@ -34,6 +34,15 @@ jobs:
 
       - run: bun run typecheck
 
+      # Regenerates the auth schema and migrations; any change means a
+      # generated file is stale and needs committing.
+      - name: Check generated schema is up to date
+        run: |
+          (cd apps/api && bun --env-file=.env.test run auth:generate)
+          bun run db:generate
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
       - run: bun run --filter @orbit/api test:migrate
 
       - run: bun run test
