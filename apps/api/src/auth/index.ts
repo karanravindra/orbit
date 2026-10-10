@@ -15,15 +15,15 @@ import {
 	organization,
 } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
-import { env } from "../env";
-import { ac, roles } from "./access-control";
-import { db } from "./db";
+import { db } from "../db";
 import {
 	emailSender,
 	organizationInvitationEmail,
 	passwordResetOtpEmail,
 	verificationOtpEmail,
-} from "./email";
+} from "../email";
+import { env } from "../env";
+import { ac, roles } from "./roles";
 
 // Durations are in seconds, like Better Auth's options.
 const OTP_EXPIRES_IN = 60 * 5;

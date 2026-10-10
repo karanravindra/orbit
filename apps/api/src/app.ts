@@ -4,8 +4,8 @@ import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
+import { auth } from "./auth";
 import { env } from "./env";
-import { auth } from "./lib/auth";
 
 // Routes are chained so their types flow into AppType for the RPC client.
 const app = new Hono()

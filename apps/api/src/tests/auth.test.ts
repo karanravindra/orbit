@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { auth } from "../lib/auth";
+import { auth } from "../auth";
 import {
 	cookiesFrom,
 	createUserTracker,

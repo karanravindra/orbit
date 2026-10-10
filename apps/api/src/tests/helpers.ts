@@ -2,8 +2,8 @@ import { expect } from "bun:test";
 import { user, verification } from "@orbit/db/schema";
 import { inArray } from "drizzle-orm";
 import app from "../app";
-import { db } from "../lib/db";
-import { emailSender, MemoryEmailSender } from "../lib/email";
+import { db } from "../db";
+import { emailSender, MemoryEmailSender } from "../email";
 
 export const origin = "http://localhost:5173";
 

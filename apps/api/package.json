@@ -11,7 +11,7 @@
 		"test": "bun test",
 		"test:migrate": "bun --env-file=.env.test run --filter @orbit/db migrate",
 		"typecheck": "tsc --noEmit",
-		"auth:generate": "bun --bun x auth generate --config src/lib/auth.ts --output ../../packages/db/src/schema/auth.ts --yes && biome check --write ../../packages/db/src/schema/auth.ts"
+		"auth:generate": "bun --bun x auth generate --config src/auth/index.ts --output ../../packages/db/src/schema/auth.ts --yes && biome check --write ../../packages/db/src/schema/auth.ts"
 	},
 	"dependencies": {
 		"@better-auth/drizzle-adapter": "1.7.7",

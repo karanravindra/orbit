@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { organization, user } from "@orbit/db/schema";
 import { eq } from "drizzle-orm";
+import { auth } from "../auth";
+import { db } from "../db";
 import { env } from "../env";
-import { auth } from "../lib/auth";
-import { db } from "../lib/db";
 import {
 	cookiesFrom,
 	createUserTracker,

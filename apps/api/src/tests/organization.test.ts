@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { invitation, member, organization, team, user } from "@orbit/db/schema";
 import { eq } from "drizzle-orm";
-import { db } from "../lib/db";
+import { db } from "../db";
 import {
 	cookiesFrom,
 	createUserTracker,
