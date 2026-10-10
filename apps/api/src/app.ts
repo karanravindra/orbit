@@ -6,6 +6,7 @@ import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import { auth } from "./auth";
 import { env } from "./env";
+import { health } from "./routes/health";
 
 // Routes are chained so their types flow into AppType for the RPC client.
 const app = new Hono()
@@ -20,7 +21,7 @@ const app = new Hono()
 		}),
 	)
 	.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
-	.get("/health", (c) => c.json({ status: "ok" }, 200));
+	.route("/health", health);
 
 app.notFound((c) => c.json({ error: "Not Found" }, 404));
 
