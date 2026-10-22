@@ -1,0 +1,12 @@
+.git
+.worktrees
+**/node_modules
+**/.env
+**/.env.*
+**/.dev.vars*
+**/.wrangler
+**/dist
+**/*.sqlite*
+**/coverage
+**/wrangler.generated.json
+**/.deploy-secrets.json
