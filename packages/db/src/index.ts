@@ -1,10 +1,6 @@
-import { SQL } from "bun";
-import { drizzle } from "drizzle-orm/bun-sql";
-import { relations } from "./relations";
+import type { createLocalDb } from "./local";
+import type { createWorkerDb } from "./worker";
 
-export function createDb(url: string) {
-	const client = new SQL(url);
-	return drizzle({ client, relations });
-}
-
-export type Db = ReturnType<typeof createDb>;
+export type Db =
+	| ReturnType<typeof createLocalDb>
+	| ReturnType<typeof createWorkerDb>;

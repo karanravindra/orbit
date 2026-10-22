@@ -4,16 +4,20 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
+		"./local": "./src/local.ts",
+		"./worker": "./src/worker.ts",
 		"./schema": "./src/schema/index.ts"
 	},
 	"scripts": {
-		"generate": "bun --bun drizzle-kit generate",
-		"migrate": "bun --bun drizzle-kit migrate",
+		"generate": "bun --bun drizzle-kit generate && bun run src/export-migrations.ts",
+		"migrate": "bun run src/migrate.ts",
 		"studio": "bun --bun drizzle-kit studio",
 		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
 		"@orbit/tsconfig": "workspace:*",
+		"@cloudflare/workers-types": "5.20261022.1",
+		"@types/bun": "1.4.2",
 		"drizzle-kit": "1.0.0-rc.4"
 	},
 	"peerDependencies": {

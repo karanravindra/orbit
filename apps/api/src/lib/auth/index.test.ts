@@ -14,7 +14,7 @@ import {
 	FAILING_CAPTCHA_TOKEN,
 } from "../../test-utils/setup";
 
-// Requires the orbit_test database with migrations applied (bun run test:migrate).
+// The test preload migrates an in-memory SQLite database.
 const users = createUserTracker();
 
 afterAll(() => users.cleanup());

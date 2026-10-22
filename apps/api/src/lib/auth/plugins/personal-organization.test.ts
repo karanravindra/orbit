@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { member, organization, team, user } from "@orbit/db/schema";
 import { eq } from "drizzle-orm";
+import { db } from "../../../local";
 import {
 	cookiesFrom,
 	createUserTracker,
@@ -11,9 +12,8 @@ import {
 	signUpVerified,
 	uniqueEmail,
 } from "../../../test-utils/helpers";
-import { db } from "../../db";
 
-// Requires the orbit_test database with migrations applied (bun run test:migrate).
+// The test preload migrates an in-memory SQLite database.
 const users = createUserTracker();
 
 afterAll(() => users.cleanup());

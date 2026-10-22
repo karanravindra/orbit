@@ -1,0 +1,25 @@
+{
+	"$schema": "../../node_modules/wrangler/config-schema.json",
+	"name": "orbit-api",
+	"main": "src/worker.ts",
+	"compatibility_date": "2026-10-22",
+	"compatibility_flags": ["nodejs_compat"],
+	"workers_dev": true,
+	"observability": { "enabled": true },
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "orbit-api-local",
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "../../packages/db/migrations"
+		}
+	],
+	"vars": {
+		"NODE_ENV": "development",
+		"BETTER_AUTH_URL": "http://localhost:8787",
+		"APP_URL": "http://localhost:5173",
+		"CORS_ORIGINS": "http://localhost:5173",
+		"EMAIL_PROVIDER": "console",
+		"TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA"
+	}
+}

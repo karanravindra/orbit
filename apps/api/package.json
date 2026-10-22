@@ -9,9 +9,13 @@
 		"dev": "bun run --watch src/index.ts",
 		"start": "bun run src/index.ts",
 		"test": "bun test",
-		"test:migrate": "bun --env-file=.env.test run --filter @orbit/db migrate",
+		"test:worker": "bun run scripts/test-worker.ts",
+		"dev:worker": "wrangler dev",
+		"worker:check": "wrangler deploy --dry-run --outdir dist/worker",
+		"db:migrate": "bun run --filter @orbit/db migrate",
+		"db:migrate:worker": "wrangler d1 migrations apply DB --local",
 		"typecheck": "tsc --noEmit",
-		"auth:generate": "bun --bun x auth generate --config src/lib/auth/index.ts --output ../../packages/db/src/schema/auth.ts --yes && biome check --write ../../packages/db/src/schema/auth.ts"
+		"auth:generate": "bun --bun x auth generate --config src/local.ts --output ../../packages/db/src/schema/auth.ts --yes && biome check --write ../../packages/db/src/schema/auth.ts"
 	},
 	"dependencies": {
 		"@better-auth/drizzle-adapter": "1.7.7",
@@ -23,6 +27,8 @@
 	},
 	"devDependencies": {
 		"@orbit/tsconfig": "workspace:*",
+		"@cloudflare/workers-types": "5.20261022.1",
+		"wrangler": "4.151.3",
 		"@types/bun": "1.4.2",
 		"auth": "1.7.7"
 	},

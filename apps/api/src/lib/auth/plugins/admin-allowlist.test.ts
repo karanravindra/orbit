@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { organization, user } from "@orbit/db/schema";
 import { eq } from "drizzle-orm";
+import { auth, db, env } from "../../../local";
 import {
 	cookiesFrom,
 	createUserTracker,
@@ -12,11 +13,8 @@ import {
 	strongPassword,
 	uniqueEmail,
 } from "../../../test-utils/helpers";
-import { db } from "../../db";
-import { env } from "../../env";
-import { auth } from "..";
 
-// Requires the orbit_test database with migrations applied (bun run test:migrate).
+// The test preload migrates an in-memory SQLite database.
 const adminEmail = env.ADMIN_EMAILS[0];
 if (!adminEmail) throw new Error("Tests need ADMIN_EMAILS (see .env.test)");
 

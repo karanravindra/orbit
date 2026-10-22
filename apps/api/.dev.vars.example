@@ -1,0 +1,2 @@
+# Copy to .dev.vars for wrangler dev. Never commit .dev.vars.
+BETTER_AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters

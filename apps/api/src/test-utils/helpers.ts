@@ -1,10 +1,8 @@
 import { expect } from "bun:test";
 import { organization, user, verification } from "@orbit/db/schema";
 import { eq, inArray } from "drizzle-orm";
-import app from "../app";
-import { emailSender, MemoryEmailSender } from "../email";
-import { db } from "../lib/db";
-import { env } from "../lib/env";
+import { MemoryEmailSender } from "../email";
+import { app, db, emailSender, env } from "../local";
 
 const [webOrigin] = env.CORS_ORIGINS;
 if (!webOrigin) throw new Error("Tests need CORS_ORIGINS (see .env.test)");

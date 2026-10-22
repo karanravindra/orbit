@@ -1,4 +1,10 @@
 import { spyOn } from "bun:test";
+import { applyMigrations } from "../../../../packages/db/src/migrate";
+import { db } from "../local";
+
+// Apply the production SQL to the same in-memory connection used by tests.
+// A temporary file isn't needed and no external database service is required.
+await applyMigrations(db.$client);
 
 // Preloaded by bunfig.toml. Stubs the two third-party APIs Better Auth calls so
 // tests run offline and stay deterministic; everything else goes through.

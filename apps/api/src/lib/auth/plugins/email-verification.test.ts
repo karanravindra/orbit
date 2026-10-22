@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { auth } from "../../../local";
 import {
 	cookiesFrom,
 	createUserTracker,
@@ -10,9 +11,8 @@ import {
 	strongPassword,
 	uniqueEmail,
 } from "../../../test-utils/helpers";
-import { auth } from "..";
 
-// Requires the orbit_test database with migrations applied (bun run test:migrate).
+// The test preload migrates an in-memory SQLite database.
 const users = createUserTracker();
 
 afterAll(() => users.cleanup());

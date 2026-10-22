@@ -1,3 +1,4 @@
+import type { Db } from "@orbit/db";
 import * as schema from "@orbit/db/schema";
 import type { BetterAuthPlugin } from "better-auth";
 import {
@@ -6,7 +7,6 @@ import {
 	getSessionFromCtx,
 } from "better-auth/api";
 import { and, eq } from "drizzle-orm";
-import { db } from "../../db";
 import { MEMBER_GUARD_ERROR_CODES as ERRORS } from "../errors";
 import { ADMIN_ROLE, OWNER_ROLE, parseRoles } from "../roles";
 
@@ -25,11 +25,12 @@ function targetOrganizationId(
 }
 
 async function findMemberRoles(
+	db: Db,
 	userId: string,
 	organizationId: string,
 ): Promise<string[]> {
 	const [row] = await db
-		.select({ role: schema.member.role })
+		.select()
 		.from(schema.member)
 		.where(
 			and(
@@ -44,6 +45,7 @@ async function findMemberRoles(
 // Throws unless the requester is an owner or admin of the org the request
 // targets. Better Auth itself rejects requests without a session or org.
 async function assertManager(
+	db: Db,
 	ctx: Parameters<typeof getSessionFromCtx>[0],
 	error: keyof typeof ERRORS,
 ): Promise<void> {
@@ -54,13 +56,17 @@ async function assertManager(
 		session.session.activeOrganizationId,
 	);
 	if (!organizationId) return;
-	const memberRoles = await findMemberRoles(session.user.id, organizationId);
+	const memberRoles = await findMemberRoles(
+		db,
+		session.user.id,
+		organizationId,
+	);
 	if (!memberRoles.some((role) => MANAGER_ROLES.includes(role))) {
 		throw APIError.from("FORBIDDEN", ERRORS[error]);
 	}
 }
 
-export function memberGuards() {
+export function memberGuards(db: Db) {
 	return {
 		id: "member-guards",
 		$ERROR_CODES: ERRORS,
@@ -71,7 +77,7 @@ export function memberGuards() {
 					// admins may invite.
 					matcher: (ctx) => ctx.path === "/organization/invite-member",
 					handler: createAuthMiddleware(async (ctx) => {
-						await assertManager(ctx, "ONLY_OWNERS_AND_ADMINS_CAN_INVITE");
+						await assertManager(db, ctx, "ONLY_OWNERS_AND_ADMINS_CAN_INVITE");
 					}),
 				},
 				{
@@ -80,7 +86,11 @@ export function memberGuards() {
 					matcher: (ctx) => ctx.path === "/organization/update-member-role",
 					handler: createAuthMiddleware(async (ctx) => {
 						if (!parseRoles(ctx.body?.role).includes(ADMIN_ROLE)) return;
-						await assertManager(ctx, "ONLY_OWNERS_AND_ADMINS_CAN_ASSIGN_ADMIN");
+						await assertManager(
+							db,
+							ctx,
+							"ONLY_OWNERS_AND_ADMINS_CAN_ASSIGN_ADMIN",
+						);
 					}),
 				},
 			],

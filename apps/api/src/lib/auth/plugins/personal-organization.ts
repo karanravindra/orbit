@@ -1,3 +1,4 @@
+import type { Db } from "@orbit/db";
 import * as schema from "@orbit/db/schema";
 import type { BetterAuthPlugin } from "better-auth";
 import {
@@ -7,7 +8,6 @@ import {
 } from "better-auth/api";
 import type { OrganizationOptions } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
-import { db } from "../../db";
 import { PERSONAL_ORGANIZATION_ERROR_CODES as ERRORS } from "../errors";
 import { OWNER_ROLE, parseRoles } from "../roles";
 
@@ -16,10 +16,11 @@ import { OWNER_ROLE, parseRoles } from "../roles";
 // it the user's only org and them its only owner.
 
 async function findPersonalOrganizationId(
+	db: Db,
 	userId: string,
 ): Promise<string | undefined> {
 	const [row] = await db
-		.select({ id: schema.organization.id })
+		.select()
 		.from(schema.organization)
 		.where(eq(schema.organization.personalOwnerId, userId))
 		.limit(1);
@@ -34,7 +35,9 @@ type CreateOrganization = (body: {
 
 export function personalOrganization({
 	createOrganization,
+	db,
 }: {
+	db: Db;
 	// Creates an org through the organization plugin as a system action (no
 	// session), so the owner membership and default team are set up like any
 	// other org.
@@ -45,7 +48,7 @@ export function personalOrganization({
 		id: string;
 		name: string;
 	}): Promise<string> {
-		const existing = await findPersonalOrganizationId(user.id);
+		const existing = await findPersonalOrganizationId(db, user.id);
 		if (existing) return existing;
 		try {
 			const created = await createOrganization({
@@ -56,7 +59,7 @@ export function personalOrganization({
 			return created.id;
 		} catch (error) {
 			// A concurrent call may have won the race on the unique personalOwnerId.
-			const raced = await findPersonalOrganizationId(user.id);
+			const raced = await findPersonalOrganizationId(db, user.id);
 			if (raced) return raced;
 			throw error;
 		}
@@ -89,11 +92,12 @@ export function personalOrganization({
 							// Every new session starts in the user's personal organization.
 							before: async (session) => {
 								let activeOrganizationId = await findPersonalOrganizationId(
+									db,
 									session.userId,
 								);
 								if (!activeOrganizationId) {
 									const [owner] = await db
-										.select({ id: schema.user.id, name: schema.user.name })
+										.select()
 										.from(schema.user)
 										.where(eq(schema.user.id, session.userId))
 										.limit(1);
@@ -127,7 +131,7 @@ export function personalOrganization({
 						const organizationId = ctx.body?.organizationId;
 						if (!session || typeof organizationId !== "string") return;
 						if (
-							(await findPersonalOrganizationId(session.user.id)) ===
+							(await findPersonalOrganizationId(db, session.user.id)) ===
 							organizationId
 						) {
 							throw APIError.from(
@@ -153,61 +157,63 @@ export function personalOrganization({
 }
 
 // Settings for organization() that go with the plugin above.
-export const personalOrganizationOptions = {
-	// Users can't create orgs: each gets a personal one at sign-up and joins
-	// others by invitation. The limit backs that up for the server-side create.
-	allowUserToCreateOrganization: false,
-	organizationLimit: async (user) =>
-		(await findPersonalOrganizationId(user.id)) !== undefined,
-	// Every org is someone's personal org, which lasts as long as the user does
-	// (personalOwnerId cascades on user delete).
-	disableOrganizationDeletion: true,
-	schema: {
-		organization: {
-			additionalFields: {
-				// Marks the personal org and its owner. Not writable via the API.
-				personalOwnerId: {
-					type: "string",
-					required: false,
-					input: false,
-					unique: true,
-					references: { model: "user", field: "id", onDelete: "cascade" },
+export function personalOrganizationOptions(db: Db) {
+	return {
+		// Users can't create orgs: each gets a personal one at sign-up and joins
+		// others by invitation. The limit backs that up for the server-side create.
+		allowUserToCreateOrganization: false,
+		organizationLimit: async (user) =>
+			(await findPersonalOrganizationId(db, user.id)) !== undefined,
+		// Every org is someone's personal org, which lasts as long as the user does
+		// (personalOwnerId cascades on user delete).
+		disableOrganizationDeletion: true,
+		schema: {
+			organization: {
+				additionalFields: {
+					// Marks the personal org and its owner. Not writable via the API.
+					personalOwnerId: {
+						type: "string",
+						required: false,
+						input: false,
+						unique: true,
+						references: { model: "user", field: "id", onDelete: "cascade" },
+					},
 				},
 			},
 		},
-	},
-	organizationHooks: {
-		beforeCreateOrganization: async ({ user }) => ({
-			data: { personalOwnerId: user.id },
-		}),
-		// The personal owner is the only owner, so the org can't be handed over
-		// and its owner can't be pushed out.
-		beforeAddMember: async ({ member, organization }) => {
-			if (
-				parseRoles(member.role).includes(OWNER_ROLE) &&
-				member.userId !== organization.personalOwnerId
-			) {
-				throw APIError.from("FORBIDDEN", ERRORS.CANNOT_ADD_OWNER);
-			}
+		organizationHooks: {
+			beforeCreateOrganization: async ({ user }) => ({
+				data: { personalOwnerId: user.id },
+			}),
+			// The personal owner is the only owner, so the org can't be handed over
+			// and its owner can't be pushed out.
+			beforeAddMember: async ({ member, organization }) => {
+				if (
+					parseRoles(member.role).includes(OWNER_ROLE) &&
+					member.userId !== organization.personalOwnerId
+				) {
+					throw APIError.from("FORBIDDEN", ERRORS.CANNOT_ADD_OWNER);
+				}
+			},
+			// Accepting an invitation adds the member without beforeAddMember.
+			beforeAcceptInvitation: async ({ invitation }) => {
+				if (parseRoles(invitation.role).includes(OWNER_ROLE)) {
+					throw APIError.from("FORBIDDEN", ERRORS.CANNOT_ADD_OWNER);
+				}
+			},
+			beforeUpdateMemberRole: async ({ member, newRole, organization }) => {
+				if (member.userId === organization.personalOwnerId) {
+					throw APIError.from("FORBIDDEN", ERRORS.CANNOT_CHANGE_OWNER_ROLE);
+				}
+				if (parseRoles(newRole).includes(OWNER_ROLE)) {
+					throw APIError.from("FORBIDDEN", ERRORS.CANNOT_ASSIGN_OWNER_ROLE);
+				}
+			},
+			beforeRemoveMember: async ({ member, organization }) => {
+				if (member.userId === organization.personalOwnerId) {
+					throw APIError.from("FORBIDDEN", ERRORS.CANNOT_REMOVE_OWNER);
+				}
+			},
 		},
-		// Accepting an invitation adds the member without beforeAddMember.
-		beforeAcceptInvitation: async ({ invitation }) => {
-			if (parseRoles(invitation.role).includes(OWNER_ROLE)) {
-				throw APIError.from("FORBIDDEN", ERRORS.CANNOT_ADD_OWNER);
-			}
-		},
-		beforeUpdateMemberRole: async ({ member, newRole, organization }) => {
-			if (member.userId === organization.personalOwnerId) {
-				throw APIError.from("FORBIDDEN", ERRORS.CANNOT_CHANGE_OWNER_ROLE);
-			}
-			if (parseRoles(newRole).includes(OWNER_ROLE)) {
-				throw APIError.from("FORBIDDEN", ERRORS.CANNOT_ASSIGN_OWNER_ROLE);
-			}
-		},
-		beforeRemoveMember: async ({ member, organization }) => {
-			if (member.userId === organization.personalOwnerId) {
-				throw APIError.from("FORBIDDEN", ERRORS.CANNOT_REMOVE_OWNER);
-			}
-		},
-	},
-} satisfies OrganizationOptions;
+	} satisfies OrganizationOptions;
+}
