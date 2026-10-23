@@ -23,6 +23,16 @@
 			"quoteStyle": "double"
 		}
 	},
+	"overrides": [
+		{
+			"includes": ["apps/web/**/*.css"],
+			"css": {
+				"parser": {
+					"tailwindDirectives": true
+				}
+			}
+		}
+	],
 	"assist": {
 		"enabled": true,
 		"actions": {

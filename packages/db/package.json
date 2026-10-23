@@ -5,6 +5,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./local": "./src/local.ts",
+		"./migrate": "./src/migrate.ts",
 		"./worker": "./src/worker.ts",
 		"./schema": "./src/schema/index.ts"
 	},

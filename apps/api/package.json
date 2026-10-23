@@ -3,7 +3,8 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		"./client": "./src/utils/client.ts"
+		"./client": "./src/utils/client.ts",
+		"./testing": "./src/testing.ts"
 	},
 	"scripts": {
 		"dev": "bun run --watch src/index.ts",

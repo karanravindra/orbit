@@ -31,7 +31,10 @@ jobs:
           bun run db:generate
           git diff --exit-code
           test -z "$(git ls-files --others --exclude-standard)"
+      - name: Install browser test dependencies
+        run: bun run --cwd apps/web test:install --with-deps
       - run: bun run test
+      - run: bun run --filter @orbit/web build
       - run: bun run --filter @orbit/api worker:check
       - name: Exercise local D1 migrations and auth
         run: bun run --cwd apps/api test:worker
