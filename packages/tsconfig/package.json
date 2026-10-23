@@ -4,10 +4,14 @@
 	"private": true,
 	"type": "module",
 	"files": [
+		"base.json",
+		"browser.json",
 		"tsconfig.json"
 	],
 	"exports": {
 		".": "./tsconfig.json",
+		"./base": "./base.json",
+		"./browser": "./browser.json",
 		"./tsconfig.json": "./tsconfig.json"
 	},
 	"dependencies": {
