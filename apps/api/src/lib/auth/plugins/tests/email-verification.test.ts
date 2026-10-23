@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { auth } from "../../../local";
+import { auth } from "../../../../local";
 import {
 	cookiesFrom,
 	createUserTracker,
@@ -10,7 +10,7 @@ import {
 	signUpVerified,
 	strongPassword,
 	uniqueEmail,
-} from "../../../test-utils/helpers";
+} from "../../../../test-utils/helpers";
 
 // The test preload migrates an in-memory SQLite database.
 const users = createUserTracker();

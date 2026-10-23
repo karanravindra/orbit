@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { notFound, onError } from "./errors";
+import { notFound, onError } from "../errors";
 
 const app = new Hono()
 	.get("/limited", () => {

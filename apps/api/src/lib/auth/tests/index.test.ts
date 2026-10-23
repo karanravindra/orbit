@@ -8,11 +8,11 @@ import {
 	signUpVerified,
 	strongPassword,
 	uniqueEmail,
-} from "../../test-utils/helpers";
+} from "../../../test-utils/helpers";
 import {
 	BREACHED_PASSWORDS,
 	FAILING_CAPTCHA_TOKEN,
-} from "../../test-utils/setup";
+} from "../../../test-utils/setup";
 
 // The test preload migrates an in-memory SQLite database.
 const users = createUserTracker();

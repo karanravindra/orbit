@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { ResendEmailSender } from "./resend";
+import { ResendEmailSender } from "../resend";
 
 const message = {
 	to: "user@example.com",

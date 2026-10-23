@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { createLocalDb } from "@orbit/db/local";
 import { testClient } from "hono/testing";
-import { createApp } from "./app";
-import { app, emailSender, env } from "./local";
-import { origin } from "./test-utils/helpers";
+import { createApp } from "../app";
+import { app, emailSender, env } from "../local";
+import { origin } from "../test-utils/helpers";
 
 const client = testClient(app);
 

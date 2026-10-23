@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseEnv } from "./env";
+import { parseEnv } from "../env";
 
 const production = {
 	BETTER_AUTH_SECRET: "test-secret-with-at-least-32-characters",

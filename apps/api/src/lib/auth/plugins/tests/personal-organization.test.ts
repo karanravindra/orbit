@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { member, organization, team, user } from "@orbit/db/schema";
 import { eq } from "drizzle-orm";
-import { db } from "../../../local";
+import { db } from "../../../../local";
 import {
 	cookiesFrom,
 	createUserTracker,
@@ -11,7 +11,7 @@ import {
 	type SignedInUser,
 	signUpVerified,
 	uniqueEmail,
-} from "../../../test-utils/helpers";
+} from "../../../../test-utils/helpers";
 
 // The test preload migrates an in-memory SQLite database.
 const users = createUserTracker();
