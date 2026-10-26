@@ -1,17 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import {
 	Building2,
+	ChevronDown,
 	CircleUserRound,
 	Home,
-	Layers3,
 	LogOut,
-	Mail,
 	Orbit,
 	Settings2,
 	ShieldCheck,
-	Users,
 } from "lucide-react";
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import {
 	ActionButton,
@@ -29,7 +27,6 @@ import {
 	SidebarContent,
 	SidebarFooter,
 	SidebarGroup,
-	SidebarGroupLabel,
 	SidebarHeader,
 	SidebarInset,
 	SidebarMenu,
@@ -154,15 +151,6 @@ function SignedInLayout({ session }: { session: Session }) {
 	);
 }
 
-const workspaceLinks = [
-	{ path: "/", label: "Overview", icon: Home },
-	{ path: "/members", label: "Members", icon: Users },
-	{ path: "/invitations", label: "Invitations", icon: Mail },
-	{ path: "/teams", label: "Teams", icon: Layers3 },
-	{ path: "/roles", label: "Roles & permissions", icon: ShieldCheck },
-	{ path: "/workspace", label: "Workspace settings", icon: Settings2 },
-];
-
 function Navigation() {
 	const { session, workspace } = useApp();
 	const orgs = auth.useListOrganizations();
@@ -171,117 +159,140 @@ function Navigation() {
 	const { setOpenMobile } = useSidebar();
 	const [switchError, setSwitchError] = useState<unknown>(null);
 	const [switching, setSwitching] = useState(false);
+	const [userMenuOpen, setUserMenuOpen] = useState(false);
+	const closeMobileNavigation = () => setOpenMobile(false);
+	const selectWorkspace = async (id: string) => {
+		setSwitching(true);
+		setSwitchError(null);
+		try {
+			await result(auth.organization.setActive({ organizationId: id }));
+			await refresh();
+			navigate("/");
+			setUserMenuOpen(false);
+			closeMobileNavigation();
+		} catch (error) {
+			setSwitchError(error);
+		} finally {
+			setSwitching(false);
+		}
+	};
 	return (
 		<Sidebar>
-			<SidebarHeader className="gap-6 p-5">
+			<SidebarHeader className="p-5">
 				<Link to="/" className="flex items-center gap-2 text-xl font-semibold">
 					<Orbit className="size-7" />
 					Orbit
 				</Link>
-				<Choice
-					label="Workspace"
-					value={workspace?.id || ""}
-					options={(orgs.data || []).map((org) => ({
-						label: org.name,
-						value: org.id,
-					}))}
-					disabled={switching}
-					onChange={async (id) => {
-						setSwitching(true);
-						setSwitchError(null);
-						try {
-							await result(auth.organization.setActive({ organizationId: id }));
-							await refresh();
-							navigate("/");
-							setOpenMobile(false);
-						} catch (error) {
-							setSwitchError(error);
-						} finally {
-							setSwitching(false);
-						}
-					}}
-				/>
-				<ErrorMessage error={switchError} />
 			</SidebarHeader>
 			<SidebarContent>
 				<SidebarGroup>
-					<SidebarGroupLabel>Workspace</SidebarGroupLabel>
-					<SidebarMenu>
-						{workspaceLinks.map((item) => (
-							<SidebarMenuItem key={item.path}>
-								<SidebarMenuButton
-									isActive={location.pathname === item.path}
-									render={<Link to={item.path} />}
-									onClick={() => setOpenMobile(false)}
-								>
-									<item.icon />
-									<span>{item.label}</span>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						))}
-					</SidebarMenu>
-				</SidebarGroup>
-				<SidebarGroup>
-					<SidebarGroupLabel>Account</SidebarGroupLabel>
 					<SidebarMenu>
 						<SidebarMenuItem>
 							<SidebarMenuButton
-								isActive={location.pathname === "/account"}
-								render={<Link to="/account" />}
-								onClick={() => setOpenMobile(false)}
+								isActive={location.pathname === "/"}
+								render={<Link to="/" />}
+								onClick={closeMobileNavigation}
 							>
-								<CircleUserRound />
-								<span>Profile & security</span>
+								<Home />
+								<span>Overview</span>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
-						{session.user.role === "admin" && (
-							<SidebarMenuItem>
-								<SidebarMenuButton
-									isActive={location.pathname === "/admin"}
-									render={<Link to="/admin" />}
-									onClick={() => setOpenMobile(false)}
-								>
-									<ShieldCheck />
-									<span>Platform admin</span>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						)}
 					</SidebarMenu>
 				</SidebarGroup>
 			</SidebarContent>
-			<SidebarFooter className="gap-4 p-5">
+			<SidebarFooter className="gap-3 p-5">
 				<Separator />
-				<div className="flex min-w-0 items-center gap-3">
+				{userMenuOpen && (
+					<div className="flex flex-col gap-3 rounded-lg border bg-background p-3 shadow-sm">
+						<Choice
+							label="Workspace"
+							value={workspace?.id || ""}
+							options={(orgs.data || []).map((org) => ({
+								label: org.name,
+								value: org.id,
+							}))}
+							disabled={switching}
+							onChange={selectWorkspace}
+						/>
+						<ErrorMessage error={switchError} />
+						<SidebarMenu>
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									render={<Link to="/settings" />}
+									onClick={() => {
+										setUserMenuOpen(false);
+										closeMobileNavigation();
+									}}
+								>
+									<Settings2 />
+									<span>Settings</span>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									render={<Link to="/account" />}
+									onClick={() => {
+										setUserMenuOpen(false);
+										closeMobileNavigation();
+									}}
+								>
+									<CircleUserRound />
+									<span>Profile & security</span>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+							{session.user.role === "admin" && (
+								<SidebarMenuItem>
+									<SidebarMenuButton
+										render={<Link to="/admin" />}
+										onClick={() => {
+											setUserMenuOpen(false);
+											closeMobileNavigation();
+										}}
+									>
+										<ShieldCheck />
+										<span>Platform admin</span>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							)}
+						</SidebarMenu>
+						<ActionButton
+							variant="outline"
+							action={async () => {
+								await result(auth.signOut());
+								queryClient.clear();
+								navigate("/sign-in", { replace: true });
+							}}
+						>
+							<LogOut data-icon="inline-start" />
+							Sign out
+						</ActionButton>
+					</div>
+				)}
+				<button
+					type="button"
+					className="flex min-w-0 items-center gap-3 rounded-md p-2 text-left hover:bg-sidebar-accent"
+					onClick={() => setUserMenuOpen((open) => !open)}
+					aria-expanded={userMenuOpen}
+				>
 					<Avatar>
 						{session.user.image && (
 							<AvatarImage src={session.user.image} alt={session.user.name} />
 						)}
 						<AvatarFallback>{initials(session.user.name)}</AvatarFallback>
 					</Avatar>
-					<div className="min-w-0">
+					<div className="min-w-0 flex-1">
 						<p className="truncate text-sm font-medium">{session.user.name}</p>
 						<p className="truncate text-xs text-muted-foreground">
-							{session.user.email}
+							{workspace?.name || "Choose a workspace"}
 						</p>
 					</div>
-				</div>
-				<ActionButton
-					variant="outline"
-					action={async () => {
-						await result(auth.signOut());
-						queryClient.clear();
-						navigate("/sign-in", { replace: true });
-					}}
-				>
-					<LogOut data-icon="inline-start" />
-					Sign out
-				</ActionButton>
+					<ChevronDown className="size-4 shrink-0" />
+				</button>
 			</SidebarFooter>
 		</Sidebar>
 	);
 }
 
-import { useState } from "react";
 export function initials(name: string) {
 	return name
 		.split(" ")
