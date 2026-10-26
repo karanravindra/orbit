@@ -166,7 +166,9 @@ export function MembersPage() {
 				description="The people who have access to this workspace."
 				action={
 					manager && (
-						<Button render={<Link to="/invitations" />}>Invite a member</Button>
+						<Button render={<Link to="/settings/invitations" />}>
+							Invite a member
+						</Button>
 					)
 				}
 			/>

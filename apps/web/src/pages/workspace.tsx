@@ -69,21 +69,21 @@ export function OverviewPage() {
 			title: "People",
 			description: "Manage workspace members and their access.",
 			icon: Users,
-			path: "/members",
+			path: "/settings/members",
 			value: `${org.data.members.length}${org.data.members.length >= 100 ? "+" : ""} members`,
 		},
 		{
 			title: "Teams",
 			description: "Organize people into focused groups.",
 			icon: Layers3,
-			path: "/teams",
+			path: "/settings/teams",
 			value: `${org.data.teams?.length || 0} teams`,
 		},
 		{
 			title: "Invitations",
 			description: "Bring someone new into your workspace.",
 			icon: Mail,
-			path: "/invitations",
+			path: "/settings/invitations",
 			value: `${org.data.invitations.filter((i) => i.status === "pending" && new Date(i.expiresAt) > new Date()).length} pending`,
 		},
 	];
@@ -117,7 +117,7 @@ export function OverviewPage() {
 							Created {date(workspace.createdAt)}
 						</p>
 					</div>
-					<Button variant="outline" render={<Link to="/workspace" />}>
+					<Button variant="outline" render={<Link to="/settings" />}>
 						Workspace settings
 						<ArrowUpRight data-icon="inline-end" />
 					</Button>

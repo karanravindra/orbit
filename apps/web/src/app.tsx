@@ -29,12 +29,12 @@ export function App() {
 				/>
 				<Route element={<AppLayout />}>
 					<Route index element={<OverviewPage />} />
-					<Route path="members" element={<MembersPage />} />
-					<Route path="invitations" element={<InvitationsPage />} />
+					<Route path="settings" element={<WorkspacePage />} />
+					<Route path="settings/members" element={<MembersPage />} />
+					<Route path="settings/invitations" element={<InvitationsPage />} />
 					<Route path="accept-invitation" element={<InvitationPage />} />
-					<Route path="teams" element={<TeamsPage />} />
-					<Route path="roles" element={<RolesPage />} />
-					<Route path="workspace" element={<WorkspacePage />} />
+					<Route path="settings/teams" element={<TeamsPage />} />
+					<Route path="settings/roles" element={<RolesPage />} />
 					<Route path="account" element={<AccountPage />} />
 					<Route path="admin" element={<AdminPage />} />
 				</Route>

@@ -344,7 +344,7 @@ export function InvitationPage() {
 										auth.organization.rejectInvitation({ invitationId: id }),
 									);
 									await refresh();
-									navigate("/invitations", { replace: true });
+									navigate("/settings/invitations", { replace: true });
 								}}
 							>
 								Decline
