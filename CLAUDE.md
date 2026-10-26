@@ -1,2 +1,3 @@
 - Interview the user using the `AskUserQuestion` tool to have them decide all business logic.
 - When commiting, do atomic commits with conventional commit format. Get permission first.
+- Keep `docs/` current. When a change alters behavior, setup, configuration, endpoints, scripts, the schema, deployment, or a business rule, update the matching doc in `docs/` in the same change (see `docs/README.md` for the index). Record significant technical decisions as a new ADR in `docs/decisions/`; supersede old ones rather than editing them.
