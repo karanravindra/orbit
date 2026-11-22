@@ -17,6 +17,7 @@ const StoriesHandlers = HttpApiBuilder.group(
           limit: clamp(query.limit, 30, 1, 100),
           minOutlets: clamp(query.minOutlets, 3, 1, 50),
           sort: query.sort ?? "coverage",
+          hours: clamp(query.hours, 48, 1, 24 * 90),
           blindspotOnly: query.blindspot === "true",
         }),
       get: ({ params }) =>

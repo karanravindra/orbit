@@ -58,11 +58,11 @@ test.skipIf(!dbUp)("Feed: bias spread per story, suffix rating match, blindspot,
       const [{ id }] = (yield* sql<{ id: number }>`insert into stories (centroid, n, first_seen, last_seen, mean_version) values (${axis(0)}::vector, 5, ${T}, ${T}, 1) returning id`) as [{ id: number }];
 
       let k = 0;
-      const add = (storyId: number, domain: string, title: string, nearCentroid: boolean) =>
+      const add = (storyId: number, domain: string, title: string, nearCentroid: boolean, lede = "lede", body: string | null = null) =>
         Effect.gen(function* () {
           const url = `https://${domain}/${k++}`;
           yield* sql`insert into urls (url, domain, seen_at) values (${url}, ${domain}, ${T})`;
-          yield* sql`insert into articles (url, domain, title, lede, seen_at) values (${url}, ${domain}, ${title}, 'lede', ${T})`;
+          yield* sql`insert into articles (url, domain, title, lede, body, seen_at) values (${url}, ${domain}, ${title}, ${lede}, ${body}, ${T})`;
           const [r] = yield* sql<{ embedKey: string }>`select embed_key from articles where url = ${url}`;
           const v = nearCentroid ? axis(0, 1 + k) : axis(2, 3 + k);
           yield* sql`insert into embeddings (embed_key, vec, cvec) values (${r!.embedKey}, ${v}::vector, ${v}::vector)`;
@@ -74,19 +74,26 @@ test.skipIf(!dbUp)("Feed: bias spread per story, suffix rating match, blindspot,
       yield* add(id, "news.l2.test", "Second", false);
       yield* add(id, "l3.test", "Third", false);
       yield* add(id, "c1.test", "Fourth", false);
-      yield* add(id, "u.test", "Fifth", false);
+      const paywall = "You have reached your maximum number of saved items.";
+      yield* add(id, "u.test", "Fifth", false, paywall, `${paywall}\n\nA real first paragraph that is long enough to count as one.`); // lede is a paywall banner
       // two unrated stations of one network: one outlet, rating borrowed from c1.test (centre)
       yield* outlets.setFamilies([{ pattern: "^k[a-z]{3}\\.test$", family: "Stations", inheritFrom: "c1.test", unratedOnly: true, priority: 1 }]);
       yield* add(id, "kaaa.test", "Station A", false);
       yield* add(id, "kbbb.test", "Station B", false);
 
-      const listed = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage" });
-      const strict = yield* feed.list({ limit: 10, minOutlets: 10, sort: "coverage" });
-      const blind = yield* feed.list({ limit: 10, minOutlets: 3, sort: "recent", blindspotOnly: true });
+      yield* sql`update articles set image_url = 'https://img.test/logo.png' where domain = 'l1.test'`; // logos never win
+      yield* sql`update articles set image_url = 'https://img.test/story.jpg' where domain in ('l3.test', 'c1.test')`;
+      yield* sql`update articles set image_url = 'https://img.test/other.jpg' where domain = 'u.test'`;
+      const listed = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 * 365 * 10 });
+      const strict = yield* feed.list({ limit: 10, minOutlets: 10, sort: "coverage", hours: 24 * 365 * 10 });
+      const blind = yield* feed.list({ limit: 10, minOutlets: 3, sort: "recent", hours: 24 * 365 * 10, blindspotOnly: true });
       const detail = yield* feed.get(Number(id));
       const missing = yield* feed.get(-1);
       const cov = yield* outlets.coverage;
-      return { id: Number(id), listed, strict, blind, detail, missing, cov };
+      const fresh = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 });
+      yield* sql`update stories set last_seen = '2000-01-01'`;
+      const stale = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 });
+      return { id: Number(id), listed, strict, blind, detail, missing, cov, fresh, stale };
     }).pipe(Effect.orDie),
   );
 
@@ -104,6 +111,10 @@ test.skipIf(!dbUp)("Feed: bias spread per story, suffix rating match, blindspot,
   expect(d.sources.find((a) => a.domain === "u.test")).toMatchObject({ outlet: "u.test", bias: null });
   expect(Option.isNone(out.missing)).toBe(true);
   expect(out.cov.total).toBeGreaterThan(0);
+  expect(s.image).toBe("https://img.test/story.jpg"); // most common non-logo image
+  expect(d.sources.find((a) => a.domain === "u.test")?.lede).toBe("A real first paragraph that is long enough to count as one."); // paywall lede replaced
+  expect(out.fresh.length).toBe(1);
+  expect(out.stale).toEqual([]); // not updated within the window
 });
 
 import { fromScore, parseAllSides, parseFamilies, score, withAllSides } from "../src/outlets/consensus";

@@ -1,11 +1,14 @@
 import { Context, Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/sql";
 import type { Fragment } from "effect/sql/Statement";
+import { cleanLede } from "../extract/extract";
 import { blindspot, type BiasCounts } from "../outlets/bias";
 
 export interface StorySummary {
   readonly id: number;
   readonly headline: string;
+  /** Most common usable share image among the story's articles. */
+  readonly image: string | null;
   /** Distinct owner groups covering the story (the unit of coverage). */
   readonly outlets: number;
   readonly articles: number;
@@ -18,6 +21,7 @@ export interface StorySummary {
 }
 export interface StoryArticle {
   readonly url: string;
+  readonly image: string | null;
   readonly title: string;
   readonly lede: string | null;
   readonly domain: string;
@@ -50,7 +54,8 @@ const withBias = (r: RawSummary): StorySummary => {
 
 /** Read model for the API: stories with their outlet bias spread. DB failures are defects. */
 export class Feed extends Context.Service<Feed, {
-  list(opts: { readonly limit: number; readonly minOutlets: number; readonly sort: Sort; readonly blindspotOnly?: boolean }): Effect.Effect<ReadonlyArray<StorySummary>>;
+  /** Stories updated within the last `hours`. */
+  list(opts: { readonly limit: number; readonly minOutlets: number; readonly sort: Sort; readonly hours: number; readonly blindspotOnly?: boolean }): Effect.Effect<ReadonlyArray<StorySummary>>;
   get(id: number): Effect.Effect<Option.Option<StoryDetail>>;
 }>()("news/Feed") {
   static readonly layer = Layer.effect(
@@ -86,6 +91,9 @@ export class Feed extends Context.Service<Feed, {
                (select a.title from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
                   join embeddings e on e.embed_key = t.embed_key
                   where t.story_id = p.story_id order by e.cvec <=> p.centroid limit 1) as headline,
+               (select a.image_url from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
+                  where t.story_id = p.story_id and a.image_url ~ '^https?://' and a.image_url !~* '(logo|favicon|placeholder|default|sprite|avatar|blank)'
+                  group by a.image_url order by count(*) desc, length(a.image_url) limit 1) as image,
                (select count(*) from b where b.story_id = p.story_id)::int as outlets,
                (select count(*) from b where b.story_id = p.story_id and b.bias = 'left')::int as "left",
                (select count(*) from b where b.story_id = p.story_id and b.bias = 'lean-left')::int as lean_left,
@@ -95,11 +103,12 @@ export class Feed extends Context.Service<Feed, {
                (select count(*) from b where b.story_id = p.story_id and b.bias is null)::int as unrated
         from picked p`;
 
-      const list = Effect.fn("Feed.list")(function* (opts: { limit: number; minOutlets: number; sort: Sort; blindspotOnly?: boolean }) {
+      const list = Effect.fn("Feed.list")(function* (opts: { limit: number; minOutlets: number; sort: Sort; hours: number; blindspotOnly?: boolean }) {
         const inner = opts.sort === "recent" ? sql`g.last_seen desc, s.raw_outlets desc` : sql`s.raw_outlets desc, g.last_seen desc`;
         // Owner grouping and blindspots are decided after scoring, so look at a wider candidate pool first.
         const pool = Math.max(opts.limit * (opts.blindspotOnly ? 10 : 3), 200);
-        const rows = yield* summaries(sql`s.raw_outlets >= ${opts.minOutlets}`, inner, pool);
+        const since = new Date(Date.now() - opts.hours * 3_600_000);
+        const rows = yield* summaries(sql`s.raw_outlets >= ${opts.minOutlets} and g.last_seen >= ${since}`, inner, pool);
         const out = rows.map(withBias).filter((r) => r.outlets >= opts.minOutlets && (!opts.blindspotOnly || r.blindspot !== null));
         out.sort(opts.sort === "recent" ? (a, b) => +b.lastSeen - +a.lastSeen || b.outlets - a.outlets : (a, b) => b.outlets - a.outlets || +b.lastSeen - +a.lastSeen);
         return out.slice(0, opts.limit);
@@ -109,13 +118,13 @@ export class Feed extends Context.Service<Feed, {
         const rows = yield* summaries(sql`s.story_id = ${id}`, sql`s.raw_outlets desc`, 1);
         const head = rows[0];
         if (!head) return Option.none<StoryDetail>();
-        const arts = yield* sql<StoryArticle>`
-          select distinct on (a.url) a.url, a.title, left(a.lede, 320) as lede, a.domain, r.name as outlet,
+        const arts = yield* sql<StoryArticle & { body: string | null }>`
+          select distinct on (a.url) a.url, a.title, a.lede, left(a.body, 3000) as body, a.image_url as image, a.domain, r.name as outlet,
                  r.bias, r.factuality, r.family, r.inherited, r.contested, a.seen_at
           from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
           left join lateral resolve_domain(a.domain) r on true
           where t.story_id = ${id}`;
-        const sorted = [...arts].sort((x, y) => +x.seenAt - +y.seenAt);
+        const sorted = [...arts].map(({ body, ...a }) => ({ ...a, lede: cleanLede(a.lede, body) })).sort((x, y) => +x.seenAt - +y.seenAt);
         return Option.some<StoryDetail>({ ...withBias(head), sources: sorted });
       }, die);
 

@@ -6,56 +6,94 @@
 <title>Stories</title>
 <style>
   :root {
-    --bg: #fafaf9; --card: #fff; --ink: #1c1917; --muted: #78716c; --line: #e7e5e4;
-    --left: #2563eb; --center: #a8a29e; --right: #dc2626; --unrated: #d6d3d1;
-    --warn: #b45309; --warn-bg: #fef3c7;
+    --bg: #f6f5f2; --card: #fff; --ink: #1a1816; --muted: #6f6a64; --line: #e4e1db; --soft: #efede8;
+    --left: #2f6fed; --center: #a39e97; --right: #e0453a; --unrated: #d9d5ce;
+    --warn: #9a5b06; --warn-bg: #fdf0cf; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 20px rgba(0,0,0,.05);
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #151413; --card: #1f1d1b; --ink: #f5f5f4; --muted: #a8a29e; --line: #33302d;
-      --left: #60a5fa; --center: #78716c; --right: #f87171; --unrated: #44403c;
-      --warn: #fbbf24; --warn-bg: #3b2f0b;
+      --bg: #121110; --card: #1c1a18; --ink: #f3f1ed; --muted: #a09a92; --line: #34312d; --soft: #262320;
+      --left: #6b9cff; --center: #7b756d; --right: #ff7a6e; --unrated: #3e3a35;
+      --warn: #f5be4f; --warn-bg: #3a2d0a; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
-  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 20px; margin-bottom: 20px; }
-  h1 { font-size: 22px; margin: 0; }
-  h1 a { color: inherit; text-decoration: none; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--left); outline-offset: 2px; border-radius: 6px; }
+  main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 72px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 24px; }
+  .brand { font: 700 24px/1 var(--serif); letter-spacing: -.01em; text-decoration: none; }
   .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
-  .filters button, .filters select { font: inherit; font-size: 14px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); cursor: pointer; }
+  .filters select, .filters button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); cursor: pointer; }
   .filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-  .card { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; color: inherit; text-decoration: none; }
-  a.card:hover { border-color: var(--muted); }
-  .card h2 { font-size: 18px; margin: 0 0 6px; line-height: 1.3; }
-  .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
-  .bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 12px 0 6px; background: var(--unrated); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-decoration: none; color: inherit; box-shadow: var(--shadow); transition: transform .15s ease, border-color .15s ease; }
+  a.card:hover { transform: translateY(-2px); border-color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { a.card { transition: none; } a.card:hover { transform: none; } }
+  .card .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .card h2 { font: 600 19px/1.28 var(--serif); margin: 0; letter-spacing: -.005em; text-wrap: balance; }
+  .hero { grid-column: 1 / -1; flex-direction: row; }
+  .hero .thumb { flex: 0 0 56%; aspect-ratio: auto; min-height: 320px; }
+  .hero h2 { font-size: 28px; }
+  .hero .body { padding: 24px; justify-content: center; }
+  @media (max-width: 760px) { .hero { flex-direction: column; } .hero .thumb { flex: none; min-height: 0; aspect-ratio: 16 / 9; } .hero h2 { font-size: 22px; } .hero .body { padding: 14px 16px 16px; } }
+
+  .thumb { position: relative; aspect-ratio: 16 / 9; background: var(--soft); overflow: hidden; }
+  .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .ph { position: absolute; inset: 0; display: grid; place-items: center; font: 700 56px/1 var(--serif); color: rgba(255,255,255,.85); }
+  .badge { position: absolute; z-index: 1; left: 10px; top: 10px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+
+  .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 12px; }
+  .bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--unrated); margin-top: auto; }
   .bar i { display: block; height: 100%; }
-  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted); }
   .legend b { color: var(--ink); font-weight: 600; }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
-  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); margin-left: 8px; vertical-align: middle; }
-  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
-  @media (max-width: 700px) { .cols { grid-template-columns: minmax(0, 1fr); } }
-  .cols > *, .card, .src { min-width: 0; overflow-wrap: anywhere; }
-  .col h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; margin: 0 0 8px; color: var(--muted); }
-  .col h3 .dot { width: 10px; height: 10px; }
-  .src { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
-  .src .outlet { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
-  .src a { color: inherit; font-weight: 600; text-decoration: none; display: block; margin: 2px 0 4px; }
-  .src a:hover { text-decoration: underline; }
-  .src p { margin: 0; font-size: 13px; color: var(--muted); }
-  .tag { font-size: 11px; padding: 0 6px; border: 1px solid var(--line); border-radius: 4px; }
+
+  .back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px; color: var(--muted); text-decoration: none; font-size: 14px; }
+  .back:hover { color: var(--ink); }
+  .story-head { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
+  .story-head.noimg { grid-template-columns: 1fr; }
+  .story-head .thumb { aspect-ratio: auto; min-height: 280px; }
+  .story-head .body { padding: 24px; display: flex; flex-direction: column; gap: 12px; justify-content: center; }
+  .story-head h1 { font: 700 30px/1.2 var(--serif); margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+  @media (max-width: 760px) { .story-head { grid-template-columns: 1fr; } .story-head .thumb { aspect-ratio: 16 / 9; min-height: 0; } .story-head .body { padding: 16px; } .story-head h1 { font-size: 24px; } }
+
+  .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 28px; align-items: start; }
+  @media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  .col h3 { display: flex; align-items: center; gap: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 10px; color: var(--muted); }
+  .col h3 .dot { width: 10px; height: 10px; margin: 0; }
+  .src { display: flex; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 10px; overflow-wrap: anywhere; }
+  .src .pic { flex: 0 0 76px; height: 76px; border-radius: 8px; overflow: hidden; position: relative; background: var(--soft); }
+  .src .pic .ph { font-size: 28px; }
+  .src .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .src .txt { min-width: 0; flex: 1; }
+  .src .outlet { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+  .src .outlet strong { color: var(--ink); font-weight: 600; }
+  .src a.t { display: block; font-weight: 600; text-decoration: none; margin: 2px 0 3px; line-height: 1.3; }
+  .src a.t:hover { text-decoration: underline; }
+  .src p { margin: 0; font-size: 13px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .src .more { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .tag { font-size: 11px; padding: 0 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); }
   .tag.low { color: var(--warn); border-color: var(--warn); }
-  .empty, .err { color: var(--muted); padding: 40px 0; text-align: center; }
-  .back { display: inline-block; margin-bottom: 14px; color: var(--muted); text-decoration: none; font-size: 14px; }
+  details { margin-top: 24px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+
+  .empty, .err { color: var(--muted); padding: 56px 0; text-align: center; }
+  .skeleton { height: 280px; border-radius: 14px; background: linear-gradient(90deg, var(--soft), var(--card), var(--soft)); background-size: 200% 100%; animation: sh 1.2s infinite linear; }
+  @keyframes sh { to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <h1><a href="#/">Stories</a></h1>
+    <a class="brand" href="#/">Stories</a>
     <div class="filters" id="filters"></div>
   </header>
   <div id="app"></div>
@@ -64,27 +102,33 @@
 const app = document.getElementById("app");
 const filtersEl = document.getElementById("filters");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : "#");
+const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : "");
 
-let state = { sort: "coverage", blindspot: false, minOutlets: 3 };
+let state = { sort: "coverage", blindspot: false, minOutlets: 3, hours: 48 };
 try { Object.assign(state, JSON.parse(localStorage.getItem("news:filters") || "{}")); } catch {}
 const save = () => { try { localStorage.setItem("news:filters", JSON.stringify(state)); } catch {} };
 
 const ago = (iso) => {
   const m = Math.max(0, (Date.now() - new Date(iso)) / 60000);
-  if (m < 60) return Math.round(m) + "m ago";
+  if (m < 60) return Math.max(1, Math.round(m)) + "m ago";
   if (m < 1440) return Math.round(m / 60) + "h ago";
   return Math.round(m / 1440) + "d ago";
 };
 
-const BUCKETS = [
-  ["left", "Left", "--left"], ["leanLeft", "Lean left", "--left"], ["center", "Center", "--center"],
-  ["leanRight", "Lean right", "--right"], ["right", "Right", "--right"],
-];
+// Picture with a deterministic gradient + initial behind it; a broken or missing image just shows the placeholder.
+function thumb(url, seed, text, extra = "") {
+  const hue = (seed * 47) % 360;
+  const ph = `<div class="ph" style="background:linear-gradient(135deg,hsl(${hue} 38% 38%),hsl(${(hue + 50) % 360} 40% 26%))" aria-hidden="true">${esc((text || "?").trim().charAt(0).toUpperCase())}</div>`;
+  const u = safeUrl(url);
+  const img = u ? `<img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : "";
+  return `${ph}${img}${extra}`;
+}
+
+const BUCKETS = ["left", "leanLeft", "center", "leanRight", "right"];
 const sideOf = (b) => (b === "left" || b === "lean-left" ? "left" : b === "right" || b === "lean-right" ? "right" : b === "center" ? "center" : "unrated");
 
 function biasBar(b) {
-  const rated = BUCKETS.reduce((n, [k]) => n + b[k], 0);
+  const rated = BUCKETS.reduce((n, k) => n + b[k], 0);
   const all = rated + b.unrated;
   if (!rated) return `<div class="bar" role="img" aria-label="No ratings available"></div><div class="legend"><span>No rated outlets yet (${all} unrated)</span></div>`;
   const seg = (n, color, op) => n ? `<i style="width:${(n / rated) * 100}%;background:var(${color});opacity:${op}"></i>` : "";
@@ -93,24 +137,25 @@ function biasBar(b) {
   const legend = `<span><span class="dot" style="background:var(--left)"></span><b>${leftN}</b> left</span>` +
     `<span><span class="dot" style="background:var(--center)"></span><b>${b.center}</b> center</span>` +
     `<span><span class="dot" style="background:var(--right)"></span><b>${rightN}</b> right</span>` +
-    `<span title="Outlets without a rating are left out of the bar">based on ${rated} of ${all} outlets</span>`;
+    `<span title="Outlets without a rating are left out of the bar">${rated} of ${all} rated</span>`;
   return `<div class="bar" role="img" aria-label="Coverage by political lean, rated outlets only">${bar}</div><div class="legend">${legend}</div>`;
 }
 
-const counts = (s) => `<span title="Owner groups: 40 stations carrying one wire story count once">${s.outlets} outlets</span><span title="Distinct texts: syndicated copies count once">${s.texts} distinct ${s.texts === 1 ? "article" : "articles"}</span>`;
-
+const counts = (s) => `<span title="Owner groups: 40 stations carrying one wire story count once">${s.outlets} outlets</span><span title="Distinct texts: syndicated copies count once">${s.texts} ${s.texts === 1 ? "article" : "articles"}</span>`;
 const blindspotBadge = (s) => s.blindspot ? `<span class="badge" title="Almost no ${s.blindspot}-leaning outlets covered this">${s.blindspot === "left" ? "Left" : "Right"} blindspot</span>` : "";
 
 function filtersUi() {
   filtersEl.innerHTML = `
+    <select id="hours" aria-label="Time window">${[[24, "Last 24 hours"], [48, "Last 48 hours"], [168, "Last 7 days"], [720, "Last 30 days"]].map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select>
     <select id="sort" aria-label="Sort"><option value="coverage">Most coverage</option><option value="recent">Most recent</option></select>
-    <select id="min" aria-label="Minimum outlets">${[2, 3, 5, 8].map((n) => `<option value="${n}">${n}+ outlets</option>`).join("")}</select>
+    <select id="min" aria-label="Minimum outlets">${[2, 3, 5, 8, 15].map((n) => `<option value="${n}">${n}+ outlets</option>`).join("")}</select>
     <button id="blind" aria-pressed="${state.blindspot}">Blindspots</button>`;
-  const sort = document.getElementById("sort"), min = document.getElementById("min"), blind = document.getElementById("blind");
-  sort.value = state.sort; min.value = String(state.minOutlets);
-  sort.onchange = () => { state.sort = sort.value; save(); route(); };
-  min.onchange = () => { state.minOutlets = +min.value; save(); route(); };
-  blind.onclick = () => { state.blindspot = !state.blindspot; save(); route(); };
+  const $ = (id) => document.getElementById(id);
+  $("hours").value = String(state.hours); $("sort").value = state.sort; $("min").value = String(state.minOutlets);
+  $("hours").onchange = () => { state.hours = +$("hours").value; save(); route(); };
+  $("sort").onchange = () => { state.sort = $("sort").value; save(); route(); };
+  $("min").onchange = () => { state.minOutlets = +$("min").value; save(); route(); };
+  $("blind").onclick = () => { state.blindspot = !state.blindspot; save(); route(); };
 }
 
 async function api(path) {
@@ -119,24 +164,29 @@ async function api(path) {
   return r.json();
 }
 
+const card = (s, hero) => `
+  <a class="card${hero ? " hero" : ""}" href="#/story/${s.id}">
+    <div class="thumb">${thumb(s.image, s.id, s.headline, blindspotBadge(s))}</div>
+    <div class="body">
+      <h2>${esc(s.headline)}</h2>
+      <div class="meta">${counts(s)}<span>updated ${ago(s.lastSeen)}</span></div>
+      ${biasBar(s.bias)}
+    </div>
+  </a>`;
+
 async function list() {
   filtersEl.style.display = "";
   filtersUi();
-  app.innerHTML = '<p class="empty">Loading…</p>';
-  const q = new URLSearchParams({ limit: "40", minOutlets: String(state.minOutlets), sort: state.sort, blindspot: String(state.blindspot) });
+  app.innerHTML = '<div class="grid"><div class="skeleton" style="grid-column:1/-1"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>';
+  const q = new URLSearchParams({ limit: "36", minOutlets: String(state.minOutlets), sort: state.sort, hours: String(state.hours), blindspot: String(state.blindspot) });
   const stories = await api("/stories?" + q);
-  if (!stories.length) { app.innerHTML = '<p class="empty">No stories match.</p>'; return; }
-  app.innerHTML = stories.map((s) => `
-    <a class="card" href="#/story/${s.id}">
-      <h2>${esc(s.headline)}${blindspotBadge(s)}</h2>
-      <div class="meta">${counts(s)}<span>updated ${ago(s.lastSeen)}</span></div>
-      ${biasBar(s.bias)}
-    </a>`).join("");
+  if (!stories.length) { app.innerHTML = '<p class="empty">No stories match these filters.</p>'; return; }
+  app.innerHTML = `<div class="grid">${stories.map((s, i) => card(s, i === 0)).join("")}</div>`;
 }
 
 async function detail(id) {
   filtersEl.style.display = "none";
-  app.innerHTML = '<p class="empty">Loading…</p>';
+  app.innerHTML = '<div class="skeleton"></div>';
   const s = await api("/stories/" + id);
   const groups = { left: [], center: [], right: [], unrated: [] };
   // identical headlines from one owner group (40 stations running one wire story) collapse into one card
@@ -144,30 +194,38 @@ async function detail(id) {
   for (const a of s.sources) {
     const key = (a.family || a.domain) + "|" + a.title;
     const hit = seen.get(key);
-    if (hit) { hit.more.push(a.outlet); continue; }
+    if (hit) { hit.more.push(a.outlet); if (!hit.image && a.image) hit.image = a.image; continue; }
     a.more = [];
     seen.set(key, a);
     groups[sideOf(a.bias)].push(a);
   }
+  const src = (a) => `
+    <article class="src">
+      <div class="pic">${thumb(a.image, a.title.length, a.outlet)}</div>
+      <div class="txt">
+        <div class="outlet"><strong>${esc(a.outlet)}</strong>${a.factuality === "low" ? '<span class="tag low">low factuality</span>' : ""}${a.contested ? '<span class="tag" title="Rating sources disagree">contested</span>' : ""}${a.inherited ? `<span class="tag" title="Rating borrowed from ${esc(a.family)}">via ${esc(a.family)}</span>` : ""}${a.bias && a.bias.startsWith("lean") ? `<span class="tag">${esc(a.bias)}</span>` : ""}</div>
+        <a class="t" href="${esc(safeUrl(a.url) || "#")}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>
+        ${a.lede ? `<p>${esc(a.lede)}</p>` : ""}
+        ${a.more.length ? `<div class="more" title="${esc(a.more.join(", "))}">+ ${a.more.length} more ${esc(a.family || "outlets")} ran this</div>` : ""}
+      </div>
+    </article>`;
   const col = (key, title, color) => `
-    <section class="col"><h3>${color ? `<span class="dot" style="background:var(${color})"></span>` : ""}${title} · ${groups[key].length}</h3>
-      ${groups[key].map((a) => `
-        <div class="src">
-          <div class="outlet"><span>${esc(a.outlet)}</span><span>${a.factuality === "low" ? '<span class="tag low">low factuality</span> ' : ""}${a.contested ? '<span class="tag" title="Rating sources disagree">contested</span> ' : ""}${a.inherited ? '<span class="tag" title="Rating borrowed from ' + esc(a.family) + '">via ' + esc(a.family) + "</span> " : ""}${a.bias && a.bias.startsWith("lean") ? '<span class="tag">' + esc(a.bias) + "</span>" : ""}</span></div>
-          <a href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>
-          ${a.more.length ? `<p title="${esc(a.more.join(", "))}">+ ${a.more.length} more ${esc(a.family || "outlets")} ran this</p>` : ""}
-          ${a.lede ? `<p>${esc(a.lede.slice(0, 160))}${a.lede.length > 160 ? "…" : ""}</p>` : ""}
-        </div>`).join("") || '<p class="empty" style="padding:8px 0;text-align:left">None</p>'}
+    <section class="col"><h3><span class="dot" style="background:var(${color})"></span>${title} · ${groups[key].length}</h3>
+      ${groups[key].map(src).join("") || '<p class="meta">No outlets on this side covered it.</p>'}
     </section>`;
+  const hasImg = !!safeUrl(s.image);
   app.innerHTML = `
     <a class="back" href="#/">← All stories</a>
-    <div class="card">
-      <h2 style="font-size:22px">${esc(s.headline)}${blindspotBadge(s)}</h2>
-      <div class="meta">${counts(s)}<span>${s.articles} links</span><span>first seen ${ago(s.firstSeen)}</span><span>updated ${ago(s.lastSeen)}</span></div>
-      ${biasBar(s.bias)}
+    <div class="story-head${hasImg ? "" : " noimg"}">
+      ${hasImg ? `<div class="thumb">${thumb(s.image, s.id, s.headline, blindspotBadge(s))}</div>` : ""}
+      <div class="body">
+        <h1>${esc(s.headline)}</h1>
+        <div class="meta">${counts(s)}<span>${s.articles} links</span><span>first seen ${ago(s.firstSeen)}</span><span>updated ${ago(s.lastSeen)}</span>${hasImg || !s.blindspot ? "" : `<span class="tag low">${s.blindspot === "left" ? "Left" : "Right"} blindspot</span>`}</div>
+        ${biasBar(s.bias)}
+      </div>
     </div>
     <div class="cols">${col("left", "Left", "--left")}${col("center", "Center", "--center")}${col("right", "Right", "--right")}</div>
-    ${groups.unrated.length ? `<details style="margin-top:20px"><summary style="cursor:pointer;color:var(--muted)">${groups.unrated.length} unrated outlets (mostly local or syndicated copies)</summary><div class="cols" style="grid-template-columns:minmax(0,1fr)">${col("unrated", "Unrated outlets", "--unrated")}</div></details>` : ""}`;
+    ${groups.unrated.length ? `<details><summary>${groups.unrated.length} unrated outlets (mostly local or syndicated copies)</summary><div class="cols" style="grid-template-columns:minmax(0,1fr)">${col("unrated", "Unrated", "--unrated")}</div></details>` : ""}`;
   document.title = s.headline;
 }
 
@@ -176,6 +234,7 @@ async function route() {
   const m = location.hash.match(/^#\/story\/(\d+)$/);
   try { await (m ? detail(m[1]) : list()); }
   catch (e) { app.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  if (m) window.scrollTo(0, 0);
 }
 addEventListener("hashchange", route);
 route();

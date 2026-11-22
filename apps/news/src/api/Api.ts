@@ -13,6 +13,7 @@ export const BiasCounts = Schema.Struct({
 const StoryFields = {
   id: Schema.Number,
   headline: Schema.String,
+  image: Schema.NullOr(Schema.String),
   /** Distinct owner groups covering the story (the unit of coverage). */
   outlets: Schema.Number,
   articles: Schema.Number,
@@ -29,6 +30,7 @@ export const StorySummary = Schema.Struct(StoryFields);
 
 export const Source = Schema.Struct({
   url: Schema.String,
+  image: Schema.NullOr(Schema.String),
   title: Schema.String,
   lede: Schema.NullOr(Schema.String),
   domain: Schema.String,
@@ -48,6 +50,8 @@ export class StoriesGroup extends HttpApiGroup.make("stories").add(
     query: {
       limit: Schema.optional(Schema.FiniteFromString),
       minOutlets: Schema.optional(Schema.FiniteFromString),
+      /** Only stories updated within this many hours (default 48). */
+      hours: Schema.optional(Schema.FiniteFromString),
       sort: Schema.optional(Schema.Literals(["coverage", "recent"])),
       blindspot: Schema.optional(Schema.Literals(["true", "false"])),
     },
