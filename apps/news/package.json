@@ -1,0 +1,12 @@
+{
+  "name": "@orbit/news",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "bun check"
+  },
+  "devDependencies": {
+    "@orbit/tsconfig": "workspace:*"
+  }
+}

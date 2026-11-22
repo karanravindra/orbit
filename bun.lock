@@ -12,12 +12,20 @@
         "typescript": "^7",
       },
     },
+    "apps/news": {
+      "name": "@orbit/news",
+      "devDependencies": {
+        "@orbit/tsconfig": "workspace:*",
+      },
+    },
     "packages/tsconfig": {
       "name": "@orbit/tsconfig",
       "version": "0.0.0",
     },
   },
   "packages": {
+    "@orbit/news": ["@orbit/news@workspace:apps/news"],
+
     "@orbit/tsconfig": ["@orbit/tsconfig@workspace:packages/tsconfig"],
 
     "@types/bun": ["@types/bun@1.4.5", "", { "dependencies": { "bun-types": "1.4.5" } }, "sha512-DpgwNI9z0L1S0gtb45QLCWgwCUcMLnsHYMJHQvpNj7erGiCGBvpggltAIeARrtobNMKMuy0UP7i56tKKgwFs/Q=="],
