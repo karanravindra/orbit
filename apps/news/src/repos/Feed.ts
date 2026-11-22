@@ -3,6 +3,7 @@ import { SqlClient } from "effect/sql";
 import type { Fragment } from "effect/sql/Statement";
 import { cleanLede } from "../extract/extract";
 import { blindspot, type BiasCounts } from "../outlets/bias";
+import { importance } from "./importance";
 
 export interface StorySummary {
   readonly id: number;
@@ -20,6 +21,10 @@ export interface StorySummary {
   readonly blindspot: "left" | "right" | null;
   /** Section id (see topics/taxonomy), null until classified. */
   readonly topic: string | null;
+  /** Front-page rank (breadth x freshness x momentum); higher is bigger news. */
+  readonly importance: number;
+  /** Young, widely covered, and still accelerating. */
+  readonly breaking: boolean;
 }
 export interface StoryArticle {
   readonly url: string;
@@ -41,17 +46,19 @@ export interface StoryArticle {
 export interface StoryDetail extends StorySummary {
   readonly sources: ReadonlyArray<StoryArticle>;
 }
-export type Sort = "coverage" | "recent";
+export type Sort = "top" | "coverage" | "recent";
 
-type RawSummary = Omit<StorySummary, "bias" | "blindspot"> & {
+type RawSummary = Omit<StorySummary, "bias" | "blindspot" | "importance" | "breaking"> & {
+  recent: number;
   left: number; leanLeft: number; center: number; leanRight: number; right: number; unrated: number;
 };
 // A blindspot needs at least this many distinct texts: one wire story copied across many outlets says little.
 const MIN_BLINDSPOT_TEXTS = 4;
 const withBias = (r: RawSummary): StorySummary => {
   const bias: BiasCounts = { left: r.left, leanLeft: r.leanLeft, center: r.center, leanRight: r.leanRight, right: r.right, unrated: r.unrated };
-  const { left: _l, leanLeft: _ll, center: _c, leanRight: _lr, right: _r, unrated: _u, ...rest } = r;
-  return { ...rest, id: Number(r.id), bias, blindspot: r.texts >= MIN_BLINDSPOT_TEXTS ? blindspot(bias) : null };
+  const { left: _l, leanLeft: _ll, center: _c, leanRight: _lr, right: _r, unrated: _u, recent, ...rest } = r;
+  const imp = importance({ outlets: r.outlets, texts: r.texts, articles: r.articles, recent, firstSeen: r.firstSeen, lastSeen: r.lastSeen });
+  return { ...rest, id: Number(r.id), bias, blindspot: r.texts >= MIN_BLINDSPOT_TEXTS ? blindspot(bias) : null, importance: imp.score, breaking: imp.breaking };
 };
 
 /** Read model for the API: stories with their outlet bias spread. DB failures are defects. */
@@ -104,17 +111,28 @@ export class Feed extends Context.Service<Feed, {
                (select count(*) from b where b.story_id = p.story_id and b.bias = 'center')::int as "center",
                (select count(*) from b where b.story_id = p.story_id and b.bias = 'lean-right')::int as lean_right,
                (select count(*) from b where b.story_id = p.story_id and b.bias = 'right')::int as "right",
-               (select count(*) from b where b.story_id = p.story_id and b.bias is null)::int as unrated
+               (select count(*) from b where b.story_id = p.story_id and b.bias is null)::int as unrated,
+               (select count(*) from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
+                  where t.story_id = p.story_id and a.seen_at >= now() - interval '3 hours')::int as recent
         from picked p`;
 
       const list = Effect.fn("Feed.list")(function* (opts: { limit: number; minOutlets: number; sort: Sort; hours: number; blindspotOnly?: boolean; topic?: string }) {
-        const inner = opts.sort === "recent" ? sql`g.last_seen desc, s.raw_outlets desc` : sql`s.raw_outlets desc, g.last_seen desc`;
+        // "top" preselects with a cheap freshness-weighted outlet count, so a young fast-growing story is not cut from the pool by older big ones.
+        const inner =
+          opts.sort === "recent" ? sql`g.last_seen desc, s.raw_outlets desc`
+          : opts.sort === "top" ? sql`ln(1 + s.raw_outlets) * (0.35 + 0.65 * power(0.5, extract(epoch from now() - g.last_seen) / 43200)) desc`
+          : sql`s.raw_outlets desc, g.last_seen desc`;
         // Owner grouping and blindspots are decided after scoring, so look at a wider candidate pool first.
         const pool = Math.max(opts.limit * (opts.blindspotOnly ? 10 : 3), 200);
         const since = new Date(Date.now() - opts.hours * 3_600_000);
         const rows = yield* summaries(sql`s.raw_outlets >= ${opts.minOutlets} and g.last_seen >= ${since} and (${opts.topic ?? null}::text is null or g.topic = ${opts.topic ?? null})`, inner, pool);
         const out = rows.map(withBias).filter((r) => r.outlets >= opts.minOutlets && (!opts.blindspotOnly || r.blindspot !== null));
-        out.sort(opts.sort === "recent" ? (a, b) => +b.lastSeen - +a.lastSeen || b.outlets - a.outlets : (a, b) => b.outlets - a.outlets || +b.lastSeen - +a.lastSeen);
+        const cmp = {
+          top: (a: StorySummary, b: StorySummary) => b.importance - a.importance,
+          recent: (a: StorySummary, b: StorySummary) => +b.lastSeen - +a.lastSeen || b.outlets - a.outlets,
+          coverage: (a: StorySummary, b: StorySummary) => b.outlets - a.outlets || +b.lastSeen - +a.lastSeen,
+        }[opts.sort];
+        out.sort(cmp);
         return out.slice(0, opts.limit);
       }, die);
 

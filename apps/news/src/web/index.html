@@ -37,7 +37,17 @@
   .tabs a small { font-weight: 500; font-size: 12px; opacity: .8; }
   .tabs a:hover { color: var(--ink); background: var(--soft); }
   .tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); }
-  .sec { margin-top: 40px; }
+  .sec { margin-top: 36px; }
+  .row { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x proximity; padding: 2px 2px 14px; margin: 0 -2px; scrollbar-width: thin; }
+  .row .card { flex: 0 0 min(300px, 78vw); scroll-snap-align: start; }
+  .nav { display: inline-flex; gap: 6px; margin-left: 12px; }
+  .nav button { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; font-size: 14px; line-height: 1; }
+  .nav button:hover { background: var(--soft); }
+  @media (hover: none) { .nav { display: none; } }
+  .card.read { opacity: .62; }
+  .sec-head .l { display: flex; align-items: center; }
+  .foot { margin-top: 48px; color: var(--muted); font-size: 13px; text-align: center; }
+  .foot button { font: inherit; color: inherit; background: none; border: 0; text-decoration: underline; cursor: pointer; padding: 0; }
   .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 14px; }
   .sec-head h2 { font: 700 22px/1.2 var(--serif); margin: 0; letter-spacing: -.01em; }
   .sec-head a { font-size: 14px; color: var(--muted); text-decoration: none; }
@@ -59,6 +69,7 @@
   .thumb { position: relative; aspect-ratio: 16 / 9; background: var(--soft); overflow: hidden; }
   .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .ph { position: absolute; inset: 0; display: grid; place-items: center; font: 700 56px/1 var(--serif); color: rgba(255,255,255,.85); }
+  .badge.brk { background: #d12c1f; color: #fff; }
   .badge { position: absolute; z-index: 1; left: 10px; top: 10px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 
   .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 12px; }
@@ -125,10 +136,26 @@ const labelOf = (id) => (id ? id[0].toUpperCase() + id.slice(1) : "Unsorted");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : "");
 
-let state = { sort: "coverage", blindspot: false, minOutlets: 3, hours: 48 };
+let state = { sort: "top", blindspot: false, minOutlets: 3, hours: 48 };
 try { Object.assign(state, JSON.parse(localStorage.getItem("news:filters") || "{}")); } catch {}
 const save = () => { try { localStorage.setItem("news:filters", JSON.stringify(state)); } catch {} };
 
+// What you read stays in this browser (localStorage): a list of {id, topic, t}. It only reorders the page for you.
+const readsKey = "news:reads";
+const loadReads = () => { try { return JSON.parse(localStorage.getItem(readsKey) || "[]"); } catch { return []; } };
+const recordRead = (s) => {
+  try {
+    const all = loadReads().filter((r) => r.id !== s.id);
+    all.push({ id: s.id, topic: s.topic || "", t: Date.now() });
+    localStorage.setItem(readsKey, JSON.stringify(all.slice(-300)));
+  } catch {}
+};
+const affinity = (reads) => {
+  const w = {}; let tot = 0;
+  for (const r of reads) { if (!r.topic) continue; const x = 0.5 ** ((Date.now() - r.t) / (14 * 864e5)); w[r.topic] = (w[r.topic] || 0) + x; tot += x; }
+  for (const k in w) w[k] /= tot || 1;
+  return { share: w, n: reads.length };
+};
 const ago = (iso) => {
   const m = Math.max(0, (Date.now() - new Date(iso)) / 60000);
   if (m < 60) return Math.max(1, Math.round(m)) + "m ago";
@@ -163,12 +190,12 @@ function biasBar(b) {
 }
 
 const counts = (s) => `<span title="Owner groups: 40 stations carrying one wire story count once">${s.outlets} outlets</span><span title="Distinct texts: syndicated copies count once">${s.texts} ${s.texts === 1 ? "article" : "articles"}</span>`;
-const blindspotBadge = (s) => s.blindspot ? `<span class="badge" title="Almost no ${s.blindspot}-leaning outlets covered this">${s.blindspot === "left" ? "Left" : "Right"} blindspot</span>` : "";
+const blindspotBadge = (s) => s.breaking ? '<span class="badge brk" title="Widely covered and still growing">Breaking</span>' : s.blindspot ? `<span class="badge" title="Almost no ${s.blindspot}-leaning outlets covered this">${s.blindspot === "left" ? "Left" : "Right"} blindspot</span>` : "";
 
 function filtersUi() {
   filtersEl.innerHTML = `
     <select id="hours" aria-label="Time window">${[[24, "Last 24 hours"], [48, "Last 48 hours"], [168, "Last 7 days"], [720, "Last 30 days"]].map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select>
-    <select id="sort" aria-label="Sort"><option value="coverage">Most coverage</option><option value="recent">Most recent</option></select>
+    <select id="sort" aria-label="Sort"><option value="top">Top stories</option><option value="coverage">Most coverage</option><option value="recent">Most recent</option></select>
     <select id="min" aria-label="Minimum outlets">${[2, 3, 5, 8, 15].map((n) => `<option value="${n}">${n}+ outlets</option>`).join("")}</select>
     <button id="blind" aria-pressed="${state.blindspot}">Blindspots</button>`;
   const $ = (id) => document.getElementById(id);
@@ -186,7 +213,7 @@ async function api(path) {
 }
 
 const card = (s, hero) => `
-  <a class="card${hero ? " hero" : ""}" href="#/story/${s.id}">
+  <a class="card${hero ? " hero" : ""}${readIds.has(s.id) ? " read" : ""}" href="#/story/${s.id}">
     <div class="thumb">${thumb(s.image, s.id, s.headline, blindspotBadge(s))}</div>
     <div class="body">
       <h2>${esc(clean(s.headline))}</h2>
@@ -195,16 +222,21 @@ const card = (s, hero) => `
     </div>
   </a>`;
 
+let readIds = new Set();
 const tabsUi = (topics, current) => {
   const total = topics.reduce((n, t) => n + t.stories, 0);
   const tab = (href, name, n, on) => `<a href="${href}"${on ? ' aria-current="page"' : ""}>${esc(name)}${n != null ? ` <small>${n}</small>` : ""}</a>`;
   tabsEl.innerHTML = tab("#/", "Top", total, !current) + topics.filter((t) => t.topic).map((t) => tab("#/t/" + t.topic, t.label, t.stories, current === t.topic)).join("");
 };
-const sectionHtml = (id, title, items, more) => `
+const sectionHtml = (id, title, items, moreHref, note) => `
   <section class="sec">
-    <div class="sec-head"><h2>${esc(title)}</h2>${more ? `<a href="#/t/${id}">All ${esc(title)} →</a>` : ""}</div>
-    <div class="grid">${items.map((s) => card(s, false)).join("")}</div>
+    <div class="sec-head"><div class="l"><h2>${esc(title)}</h2><span class="nav"><button type="button" data-dir="-1" aria-label="Scroll left">‹</button><button type="button" data-dir="1" aria-label="Scroll right">›</button></span>${note ? `<span class="meta" style="margin-left:12px">${esc(note)}</span>` : ""}</div>${moreHref ? `<a href="${moreHref}">All ${esc(title)} →</a>` : ""}</div>
+    <div class="row">${items.map((s) => card(s, false)).join("")}</div>
   </section>`;
+const wireRows = () => document.querySelectorAll(".sec").forEach((sec) => {
+  const row = sec.querySelector(".row");
+  sec.querySelectorAll(".nav button").forEach((b) => (b.onclick = () => row.scrollBy({ left: +b.dataset.dir * row.clientWidth * 0.9, behavior: "smooth" })));
+});
 
 async function list(topic) {
   filtersEl.style.display = "";
@@ -218,18 +250,36 @@ async function list(topic) {
   ]);
   tabsUi(topics, topic);
   if (!stories.length) { app.innerHTML = '<p class="empty">No stories match these filters.</p>'; return; }
+  readIds = new Set(loadReads().map((r) => r.id));
   if (topic) { app.innerHTML = `<div class="grid">${stories.map((s, i) => card(s, i === 0)).join("")}</div>`; return; }
-  // Front page: the biggest stories first, then one short section per topic (most stories first).
-  const top = stories.slice(0, 7);
-  const rest = stories.slice(7);
+  // Front page: the biggest story as a hero, then one sideways row per section (6 stories each).
+  const reads = loadReads();
+  readIds = new Set(reads.map((r) => r.id));
+  const { share, n } = affinity(reads);
+  const hero = stories[0];
+  const rest = stories.slice(1);
+  const top = rest.slice(0, 6);
+  const placed = new Set([hero.id, ...top.map((s) => s.id)]);
+  const forYou = n >= 3
+    ? rest.filter((s) => !readIds.has(s.id) && !placed.has(s.id) && share[s.topic])
+        .map((s) => ({ s, k: s.importance * (0.4 + 3 * share[s.topic]) })).sort((a, b) => b.k - a.k).slice(0, 6).map((x) => x.s)
+    : [];
   const by = new Map();
-  for (const s of rest) { const k = s.topic || ""; if (!by.has(k)) by.set(k, []); by.get(k).push(s); }
-  // Sections ordered by their biggest story, so a quiet topic with many small stories does not outrank breaking news.
-  const order = [...by.keys()].filter(Boolean).sort((x, y) => by.get(y)[0].outlets - by.get(x)[0].outlets);
-  if (by.has("")) order.push("");
+  const shown = new Set(forYou.map((s) => s.id)); // a story appears once on the front page
+  for (const s of rest.slice(6)) { if (shown.has(s.id)) continue; const k = s.topic || ""; if (!by.has(k)) by.set(k, []); by.get(k).push(s); }
+  // Sections ordered by their best story's importance, nudged toward what you read.
+  const rank = (k) => by.get(k)[0].importance * (1 + 2 * (share[k] || 0));
+  const order = [...by.keys()].filter(Boolean).sort((x, y) => rank(y) - rank(x));
+  const count = (k) => topics.find((t) => (t.topic || "") === k)?.stories ?? 0;
   app.innerHTML =
-    `<div class="grid">${top.map((s, i) => card(s, i === 0)).join("")}</div>` +
-    order.map((k) => sectionHtml(k, labelOf(k), by.get(k).slice(0, 6), by.get(k).length > 0 && (topics.find((t) => (t.topic || "") === k)?.stories ?? 0) > 6)).join("");
+    `<div class="grid">${card(hero, true)}</div>` +
+    sectionHtml("top", "Top stories", top) +
+    (forYou.length ? sectionHtml("you", "For you", forYou, "", "based on what you read, kept in this browser") : "") +
+    order.map((k) => sectionHtml(k, labelOf(k), by.get(k).slice(0, 6), count(k) > 6 ? "#/t/" + k : "")).join("") +
+    (n ? '<p class="foot"><button type="button" id="clr">Clear my reading history</button></p>' : "");
+  wireRows();
+  const clr = document.getElementById("clr");
+  if (clr) clr.onclick = () => { try { localStorage.removeItem(readsKey); } catch {} route(); };
 }
 
 async function detail(id) {
@@ -237,6 +287,7 @@ async function detail(id) {
   tabsEl.style.display = "none";
   app.innerHTML = '<div class="skeleton"></div>';
   const s = await api("/stories/" + id);
+  recordRead(s);
   const groups = { left: [], center: [], right: [], unrated: [] };
   // identical headlines from one owner group (40 stations running one wire story) collapse into one card
   const seen = new Map();

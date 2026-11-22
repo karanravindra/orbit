@@ -26,6 +26,10 @@ const StoryFields = {
   blindspot: Schema.NullOr(Schema.Literals(["left", "right"])),
   /** Section id, null until classified. */
   topic: Schema.NullOr(Schema.String),
+  /** Front-page rank; higher is bigger news. */
+  importance: Schema.Number,
+  /** Young, widely covered and still accelerating. */
+  breaking: Schema.Boolean,
 };
 
 export const StorySummary = Schema.Struct(StoryFields);
@@ -54,7 +58,7 @@ export class StoriesGroup extends HttpApiGroup.make("stories").add(
       minOutlets: Schema.optional(Schema.FiniteFromString),
       /** Only stories updated within this many hours (default 48). */
       hours: Schema.optional(Schema.FiniteFromString),
-      sort: Schema.optional(Schema.Literals(["coverage", "recent"])),
+      sort: Schema.optional(Schema.Literals(["top", "coverage", "recent"])),
       blindspot: Schema.optional(Schema.Literals(["true", "false"])),
       /** Section id, e.g. politics (see GET /topics). */
       topic: Schema.optional(Schema.String),
