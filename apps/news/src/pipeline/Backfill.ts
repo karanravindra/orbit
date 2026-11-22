@@ -2,6 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import { HttpClientRequest } from "effect/http";
 import { SqlClient } from "effect/sql";
 import { cleanLede, extract, isBoilerplate } from "../extract/extract";
+import { lowQuality } from "../extract/quality";
 import { PoliteClient } from "../http/PoliteClient";
 
 const UA = "Mozilla/5.0 (compatible; orbit-news/0.1)";
@@ -20,6 +21,8 @@ export class Backfill extends Context.Service<Backfill, {
    * then drop embeddings no article refers to. Run `embed` and `cluster --rebuild` afterwards. Returns [fixed, rejected].
    */
   cleanLedes: Effect.Effect<readonly [number, number]>;
+  /** Reject stored press releases, news roundups and listicles (see extract/quality). Returns the count rejected, by reason. */
+  quality: Effect.Effect<Readonly<Record<string, number>>>;
 }>()("news/pipeline/Backfill") {
   static readonly layer = Layer.effect(
     Backfill,
@@ -70,7 +73,20 @@ export class Backfill extends Context.Service<Backfill, {
         return [fixed, rejected] as const;
       }).pipe(Effect.orDie);
 
-      return Backfill.of({ images, cleanLedes });
+      const quality = Effect.gen(function* () {
+        // Idempotent: undo earlier quality rejections first, so a tightened rule frees pages an older rule caught.
+        yield* sql`update articles set reject_reason = null where reject_reason in ('press_release', 'roundup', 'listicle')`;
+        const rows = yield* sql<{ id: number; title: string | null; lede: string | null; domain: string }>`select id, title, lede, domain from articles where reject_reason is null`;
+        const hits = new Map<string, number[]>();
+        for (const r of rows) {
+          const why = lowQuality(r.title, r.lede, r.domain);
+          if (why) (hits.get(why) ?? hits.set(why, []).get(why)!).push(Number(r.id));
+        }
+        for (const [why, ids] of hits) yield* sql`update articles set reject_reason = ${why} where id in ${sql.in(ids)}`;
+        return Object.fromEntries([...hits].map(([why, ids]) => [why, ids.length]));
+      }).pipe(Effect.orDie);
+
+      return Backfill.of({ images, cleanLedes, quality });
     }),
   );
 }

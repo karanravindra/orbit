@@ -84,6 +84,11 @@ test.skipIf(!dbUp)("Feed: bias spread per story, suffix rating match, blindspot,
       yield* sql`update articles set image_url = 'https://img.test/logo.png' where domain = 'l1.test'`; // logos never win
       yield* sql`update articles set image_url = 'https://img.test/story.jpg' where domain in ('l3.test', 'c1.test')`;
       yield* sql`update articles set image_url = 'https://img.test/other.jpg' where domain = 'u.test'`;
+      const unsorted = yield* feed.topics({ minOutlets: 3, hours: 24 * 365 * 10 });
+      const untopiced = yield* feed.list({ limit: 10, minOutlets: 3, sort: "recent", hours: 24 * 365 * 10, blindspotOnly: true }); // not yet in a blindspot section
+      yield* sql`update stories set topic = 'sports' where id = ${id}`;
+      const sporty = yield* feed.list({ limit: 10, minOutlets: 3, sort: "recent", hours: 24 * 365 * 10, blindspotOnly: true });
+      yield* sql`update stories set topic = 'politics' where id = ${id}`;
       const listed = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 * 365 * 10 });
       const strict = yield* feed.list({ limit: 10, minOutlets: 10, sort: "coverage", hours: 24 * 365 * 10 });
       const blind = yield* feed.list({ limit: 10, minOutlets: 3, sort: "recent", hours: 24 * 365 * 10, blindspotOnly: true });
@@ -91,24 +96,24 @@ test.skipIf(!dbUp)("Feed: bias spread per story, suffix rating match, blindspot,
       const missing = yield* feed.get(-1);
       const cov = yield* outlets.coverage;
       const fresh = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 });
-      const unsorted = yield* feed.topics({ minOutlets: 3, hours: 24 * 365 * 10 });
-      yield* sql`update stories set topic = 'politics' where id = ${id}`;
       const sorted = yield* feed.topics({ minOutlets: 3, hours: 24 * 365 * 10 });
       const inTopic = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 * 365 * 10, topic: "politics" });
       const otherTopic = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 * 365 * 10, topic: "sports" });
       yield* sql`update stories set last_seen = '2000-01-01'`;
       const stale = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 });
-      return { id: Number(id), unsorted, sorted, inTopic, otherTopic, listed, strict, blind, detail, missing, cov, fresh, stale };
+      return { id: Number(id), untopiced, sporty, unsorted, sorted, inTopic, otherTopic, listed, strict, blind, detail, missing, cov, fresh, stale };
     }).pipe(Effect.orDie),
   );
 
   const s = out.listed[0]!;
   expect(out.listed.length).toBe(1);
-  expect(s).toMatchObject({ id: out.id, headline: "Central headline", outlets: 6, articles: 8, texts: 8 }); // 8 links, 6 owner groups
+  expect(s).toMatchObject({ id: out.id, headline: "Central headline", outlets: 6, articles: 8, texts: 8, reports: 8, summary: null }); // 8 links, 6 owner groups; no wire analysis yet, so reports = texts
   expect(s.bias).toEqual({ left: 2, leanLeft: 1, center: 2, leanRight: 0, right: 0, unrated: 1 });
   expect(s.blindspot).toBe("right");
   expect(out.strict).toEqual([]);
   expect(out.blind.map((b) => b.id)).toEqual([out.id]);
+  expect(out.untopiced).toEqual([]); // blindspots only exist in politics, world and business
+  expect(out.sporty).toEqual([]);
   const d = Option.getOrThrow(out.detail);
   expect(d.sources.length).toBe(8);
   expect(d.sources.find((a) => a.domain === "kaaa.test")).toMatchObject({ family: "Stations", bias: "center", inherited: true });

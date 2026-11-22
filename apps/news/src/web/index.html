@@ -72,6 +72,12 @@
   .badge.brk { background: #d12c1f; color: #fff; }
   .badge { position: absolute; z-index: 1; left: 10px; top: 10px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 
+  .sum { margin: 10px 0 0; font: 17px/1.5 var(--serif); }
+  .sum small { display: block; margin-top: 4px; font: 12px/1.4 var(--sans); color: var(--muted); }
+  .sum.wait { color: var(--muted); }
+  .sum.wait::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--center); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .hero .sum { font-size: 16px; margin: 8px 0 12px; }
   .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 12px; }
   .bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--unrated); margin-top: auto; }
   .bar i { display: block; height: 100%; }
@@ -189,7 +195,8 @@ function biasBar(b) {
   return `<div class="bar" role="img" aria-label="Coverage by political lean, rated outlets only">${bar}</div><div class="legend">${legend}</div>`;
 }
 
-const counts = (s) => `<span title="Owner groups: 40 stations carrying one wire story count once">${s.outlets} outlets</span><span title="Distinct texts: syndicated copies count once">${s.texts} ${s.texts === 1 ? "article" : "articles"}</span>`;
+const isWire = (s) => s.reports <= 2 && s.outlets >= 8;
+const counts = (s) => `<span title="Owner groups: 40 stations carrying one wire story count once">${s.outlets} outlets</span><span title="Independent reports: copies of one wire story count once (${s.texts} distinct texts)">${s.reports} ${s.reports === 1 ? "report" : "reports"}</span>${isWire(s) ? '<span class="tag" title="Carried by many outlets, but nearly all are copies of one report">wire story</span>' : ""}`;
 const blindspotBadge = (s) => s.breaking ? '<span class="badge brk" title="Widely covered and still growing">Breaking</span>' : s.blindspot ? `<span class="badge" title="Almost no ${s.blindspot}-leaning outlets covered this">${s.blindspot === "left" ? "Left" : "Right"} blindspot</span>` : "";
 
 function filtersUi() {
@@ -217,6 +224,7 @@ const card = (s, hero) => `
     <div class="thumb">${thumb(s.image, s.id, s.headline, blindspotBadge(s))}</div>
     <div class="body">
       <h2>${esc(clean(s.headline))}</h2>
+      ${hero && s.summary ? `<p class="sum">${esc(s.summary)}</p>` : ""}
       <div class="meta">${counts(s)}<span>updated ${ago(s.lastSeen)}</span></div>
       ${biasBar(s.bias)}
     </div>
@@ -282,12 +290,23 @@ async function list(topic) {
   if (clr) clr.onclick = () => { try { localStorage.removeItem(readsKey); } catch {} route(); };
 }
 
+// Summaries are written ahead of time by a small local model, never on request (it takes seconds to load). A story opened
+// without one shows the lede of its first report meanwhile; the server pushes a `summary` event when the real one is ready.
+const summaryHtml = (s) => {
+  if (s.summary) return `<p class="sum">${esc(s.summary)}<small>Summary written by AI from ${s.reports} independent ${s.reports === 1 ? "report" : "reports"}. Check the sources below.</small></p>`;
+  const first = s.sources.find((a) => a.lede);
+  const lede = first ? first.lede.split(/(?<=[.!?])\s/).slice(0, 2).join(" ") : "";
+  return `${s.summaryPending ? '<p class="sum wait">Writing a summary…</p>' : ""}${lede ? `<p class="sum">${esc(lede)}<small>From ${esc(first.outlet)}.</small></p>` : ""}`;
+};
+let openStory = null;
+
 async function detail(id) {
   filtersEl.style.display = "none";
   tabsEl.style.display = "none";
   app.innerHTML = '<div class="skeleton"></div>';
   const s = await api("/stories/" + id);
   recordRead(s);
+  openStory = s.id;
   const groups = { left: [], center: [], right: [], unrated: [] };
   // identical headlines from one owner group (40 stations running one wire story) collapse into one card
   const seen = new Map();
@@ -321,6 +340,7 @@ async function detail(id) {
       <div class="body">
         ${s.topic ? `<div><a class="chip" href="#/t/${esc(s.topic)}">${esc(labelOf(s.topic))}</a></div>` : ""}
         <h1>${esc(clean(s.headline))}</h1>
+        <div id="sum">${summaryHtml(s)}</div>
         <div class="meta">${counts(s)}<span>${s.articles} links</span><span>first seen ${ago(s.firstSeen)}</span><span>updated ${ago(s.lastSeen)}</span>${hasImg || !s.blindspot ? "" : `<span class="tag low">${s.blindspot === "left" ? "Left" : "Right"} blindspot</span>`}</div>
         ${biasBar(s.bias)}
       </div>
@@ -332,6 +352,7 @@ async function detail(id) {
 
 async function route() {
   document.title = "Stories";
+  openStory = null;
   const m = location.hash.match(/^#\/story\/(\d+)$/);
   const t = location.hash.match(/^#\/t\/([a-z]+)$/);
   try { await (m ? detail(m[1]) : list(t ? t[1] : "")); }
@@ -357,6 +378,12 @@ function clearPending() { pending = { seeded: 0, joined: 0 }; live.innerHTML = "
 addEventListener("hashchange", clearPending);
 if ("EventSource" in window && !location.search.includes("nolive")) {
   const es = new EventSource("/events");
+  es.addEventListener("summary", async (e) => {
+    let d = {};
+    try { d = JSON.parse(e.data); } catch {}
+    if (d.id !== openStory || !location.hash.startsWith("#/story/")) return;
+    try { const s = await api("/stories/" + d.id); const el = document.getElementById("sum"); if (el && s.summary) el.innerHTML = summaryHtml(s); } catch {}
+  });
   es.addEventListener("stories", (e) => {
     let d = {};
     try { d = JSON.parse(e.data); } catch {}

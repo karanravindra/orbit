@@ -12,6 +12,8 @@ import { Cluster } from "./pipeline/Cluster";
 import { Embed } from "./pipeline/Embed";
 import { Fetcher } from "./pipeline/Fetcher";
 import { Ingest } from "./pipeline/Ingest";
+import { Reports } from "./pipeline/Reports";
+import { Summaries } from "./pipeline/Summaries";
 import { Topics } from "./pipeline/Topics";
 import { BullMq } from "./queue/BullMq";
 import { FetchQueue } from "./queue/FetchQueue";
@@ -22,6 +24,7 @@ import { Feed } from "./repos/Feed";
 import { Outlets } from "./repos/Outlets";
 import { Stories } from "./repos/Stories";
 import { Urls } from "./repos/Urls";
+import { Summarizer } from "./summaries/Summarizer";
 import { Classifier } from "./topics/Classifier";
 
 // Per-domain rate-limit and circuit-breaker state lives in Redis, so every worker process shares it.
@@ -33,11 +36,13 @@ const Resilience = Layer.mergeAll(
 
 const Infra = Layer.mergeAll(PgLive, FetchHttpClient.layer, BunServices.layer);
 
-const Leaves = Layer.mergeAll(Urls.layer, Articles.layer, Embeddings.layer, Stories.layer, Outlets.layer, Feed.layer, Embedder.layer, Classifier.layer, Gdelt.layer, BullMq.layer, PoliteClient.layer.pipe(Layer.provide(Resilience))).pipe(
+const Leaves = Layer.mergeAll(Urls.layer, Articles.layer, Embeddings.layer, Stories.layer, Outlets.layer, Feed.layer, Embedder.layer, Classifier.layer, Summarizer.layer, Gdelt.layer, BullMq.layer, PoliteClient.layer.pipe(Layer.provide(Resilience))).pipe(
   Layer.provideMerge(Infra),
 );
 
 const AppLayer = Schedulers.layer.pipe(
+  Layer.provideMerge(Summaries.layer),
+  Layer.provideMerge(Reports.layer),
   Layer.provideMerge(Topics.layer),
   Layer.provideMerge(Backfill.layer),
   Layer.provideMerge(Cluster.layer),

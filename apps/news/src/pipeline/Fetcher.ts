@@ -3,6 +3,7 @@ import { HttpClientRequest } from "effect/http";
 import { CircuitBreaker } from "effect/persistence";
 import { DomainCooldown, ExtractError, FetchError } from "../errors";
 import { extract } from "../extract/extract";
+import type { LowQuality } from "../extract/quality";
 import { parseRetryAfter, PoliteClient, type PoliteError } from "../http/PoliteClient";
 import { Articles } from "../repos/Articles";
 import type { UrlJob } from "../repos/Urls";
@@ -11,7 +12,7 @@ const MAX_BYTES = 2_000_000;
 const UA = "Mozilla/5.0 (compatible; orbit-news/0.1)";
 const HALF_OPEN_WAIT_MS = 5_000;
 
-export type Outcome = "ok" | "short" | "non_english";
+export type Outcome = "ok" | "short" | "non_english" | LowQuality;
 
 /** Classify what the polite client can fail with. Open circuit => park the job, don't count an attempt. */
 const fromClient = (url: string) => (e: PoliteError | { readonly _tag: string }): FetchError | DomainCooldown => {

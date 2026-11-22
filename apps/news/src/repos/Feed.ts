@@ -2,7 +2,9 @@ import { Context, Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/sql";
 import type { Fragment } from "effect/sql/Statement";
 import { cleanLede } from "../extract/extract";
+import { cleanTitle } from "../extract/headline";
 import { blindspot, type BiasCounts } from "../outlets/bias";
+import { blindspotEligible } from "../topics/taxonomy";
 import { importance } from "./importance";
 
 export interface StorySummary {
@@ -13,8 +15,10 @@ export interface StorySummary {
   /** Distinct owner groups covering the story (the unit of coverage). */
   readonly outlets: number;
   readonly articles: number;
-  /** Distinct texts: syndicated copies count once. */
+  /** Distinct texts: byte-identical syndicated copies count once. */
   readonly texts: number;
+  /** Independent reports: texts with near-verbatim wire copies folded together (<= texts). */
+  readonly reports: number;
   readonly firstSeen: Date;
   readonly lastSeen: Date;
   readonly bias: BiasCounts;
@@ -25,6 +29,8 @@ export interface StorySummary {
   readonly importance: number;
   /** Young, widely covered, and still accelerating. */
   readonly breaking: boolean;
+  /** LLM-written summary, null until one exists. */
+  readonly summary: string | null;
 }
 export interface StoryArticle {
   readonly url: string;
@@ -48,17 +54,29 @@ export interface StoryDetail extends StorySummary {
 }
 export type Sort = "top" | "coverage" | "recent";
 
-type RawSummary = Omit<StorySummary, "bias" | "blindspot" | "importance" | "breaking"> & {
+type RawSummary = Omit<StorySummary, "bias" | "blindspot" | "importance" | "breaking" | "headline" | "reports"> & {
+  head: { title: string; sitename: string | null; domain: string } | null;
+  indep: number | null;
   recent: number;
   left: number; leanLeft: number; center: number; leanRight: number; right: number; unrated: number;
 };
-// A blindspot needs at least this many distinct texts: one wire story copied across many outlets says little.
-const MIN_BLINDSPOT_TEXTS = 4;
+// A blindspot needs at least this many independent reports: one wire story copied across many outlets says little.
+const MIN_BLINDSPOT_REPORTS = 4;
 const withBias = (r: RawSummary): StorySummary => {
   const bias: BiasCounts = { left: r.left, leanLeft: r.leanLeft, center: r.center, leanRight: r.leanRight, right: r.right, unrated: r.unrated };
-  const { left: _l, leanLeft: _ll, center: _c, leanRight: _lr, right: _r, unrated: _u, recent, ...rest } = r;
-  const imp = importance({ outlets: r.outlets, texts: r.texts, articles: r.articles, recent, firstSeen: r.firstSeen, lastSeen: r.lastSeen });
-  return { ...rest, id: Number(r.id), bias, blindspot: r.texts >= MIN_BLINDSPOT_TEXTS ? blindspot(bias) : null, importance: imp.score, breaking: imp.breaking };
+  const { left: _l, leanLeft: _ll, center: _c, leanRight: _lr, right: _r, unrated: _u, recent, head, indep, ...rest } = r;
+  const reports = Math.min(indep ?? r.texts, r.texts);
+  const imp = importance({ outlets: r.outlets, reports, articles: r.articles, recent, firstSeen: r.firstSeen, lastSeen: r.lastSeen });
+  return {
+    ...rest,
+    id: Number(r.id),
+    headline: head ? cleanTitle(head.title, head.sitename, head.domain) : "",
+    reports,
+    bias,
+    blindspot: reports >= MIN_BLINDSPOT_REPORTS && blindspotEligible(r.topic) ? blindspot(bias) : null,
+    importance: imp.score,
+    breaking: imp.breaking,
+  };
 };
 
 /** Read model for the API: stories with their outlet bias spread. DB failures are defects. */
@@ -68,6 +86,8 @@ export class Feed extends Context.Service<Feed, {
   /** Stories per section (>= minOutlets domains, updated within `hours`). */
   topics(opts: { readonly minOutlets: number; readonly hours: number }): Effect.Effect<ReadonlyArray<{ readonly topic: string | null; readonly stories: number }>>;
   get(id: number): Effect.Effect<Option.Option<StoryDetail>>;
+  /** A visitor opened a story that has no summary: queue it for the writer ahead of the scheduled backlog. */
+  wantSummary(id: number): Effect.Effect<void>;
 }>()("news/Feed") {
   static readonly layer = Layer.effect(
     Feed,
@@ -86,7 +106,7 @@ export class Feed extends Context.Service<Feed, {
           select story_id, count(*)::int as raw_outlets, sum(n)::int as articles
           from st group by story_id),
         picked as (
-          select s.story_id, s.articles, g.first_seen, g.last_seen, g.centroid, g.topic
+          select s.story_id, s.articles, g.first_seen, g.last_seen, g.centroid, g.topic, g.indep
           from s join stories g on g.id = s.story_id
           where ${storyFilter}
           order by ${inner} limit ${pool}),
@@ -97,11 +117,13 @@ export class Feed extends Context.Service<Feed, {
         b as (
           select story_id, owner, (array_agg(bias order by bias is null, bias))[1] as bias
           from rs group by story_id, owner)
-        select p.story_id as id, p.articles, p.topic, p.first_seen, p.last_seen,
+        select p.story_id as id, p.articles, p.topic, p.indep, p.first_seen, p.last_seen,
+               (select body from story_summaries ss where ss.story_id = p.story_id) as summary,
                (select count(*) from story_texts t where t.story_id = p.story_id)::int as texts,
-               (select a.title from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
+               (select json_build_object('title', a.title, 'sitename', a.sitename, 'domain', a.domain)
+                  from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
                   join embeddings e on e.embed_key = t.embed_key
-                  where t.story_id = p.story_id order by e.cvec <=> p.centroid limit 1) as headline,
+                  where t.story_id = p.story_id order by e.cvec <=> p.centroid limit 1) as head,
                (select a.image_url from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
                   where t.story_id = p.story_id and a.image_url ~ '^https?://' and a.image_url !~* '(logo|favicon|placeholder|default|sprite|avatar|blank)'
                   group by a.image_url order by count(*) desc, length(a.image_url) limit 1) as image,
@@ -140,13 +162,13 @@ export class Feed extends Context.Service<Feed, {
         const rows = yield* summaries(sql`s.story_id = ${id}`, sql`s.raw_outlets desc`, 1);
         const head = rows[0];
         if (!head) return Option.none<StoryDetail>();
-        const arts = yield* sql<StoryArticle & { body: string | null }>`
-          select distinct on (a.url) a.url, a.title, a.lede, left(a.body, 3000) as body, a.image_url as image, a.domain, r.name as outlet,
+        const arts = yield* sql<StoryArticle & { body: string | null; sitename: string | null }>`
+          select distinct on (a.url) a.url, a.title, a.sitename, a.lede, left(a.body, 3000) as body, a.image_url as image, a.domain, r.name as outlet,
                  r.bias, r.factuality, r.family, r.inherited, r.contested, a.seen_at
           from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
           left join lateral resolve_domain(a.domain) r on true
           where t.story_id = ${id}`;
-        const sorted = [...arts].map(({ body, ...a }) => ({ ...a, lede: cleanLede(a.lede, body) })).sort((x, y) => +x.seenAt - +y.seenAt);
+        const sorted = [...arts].map(({ body, sitename, ...a }) => ({ ...a, title: cleanTitle(a.title, sitename, a.domain), lede: cleanLede(a.lede, body) })).sort((x, y) => +x.seenAt - +y.seenAt);
         return Option.some<StoryDetail>({ ...withBias(head), sources: sorted });
       }, die);
 
@@ -161,7 +183,14 @@ export class Feed extends Context.Service<Feed, {
           group by g.topic order by 2 desc`;
       }, die);
 
-      return Feed.of({ list, get, topics });
+      const wantSummary = Effect.fn("Feed.wantSummary")(function* (id: number) {
+        yield* sql`
+          insert into summary_state (story_id, requested_at)
+          select id, now() from stories where id = ${id}
+          on conflict (story_id) do update set requested_at = coalesce(summary_state.requested_at, now())`;
+      }, die);
+
+      return Feed.of({ list, get, topics, wantSummary });
     }),
   );
 }

@@ -45,3 +45,8 @@ export class VariantMismatch extends Schema.TaggedError<VariantMismatch>()("Vari
 export class ClusterStale extends Schema.TaggedError<ClusterStale>()("ClusterStale", {
   message: Schema.String,
 }) {}
+
+export class SummarizeError extends Schema.TaggedError<SummarizeError>()("SummarizeError", {
+  message: Schema.String,
+  cause: Schema.optional(Schema.Defect()),
+}) {}

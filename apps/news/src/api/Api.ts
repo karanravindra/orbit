@@ -17,8 +17,10 @@ const StoryFields = {
   /** Distinct owner groups covering the story (the unit of coverage). */
   outlets: Schema.Number,
   articles: Schema.Number,
-  /** Distinct texts: syndicated copies count once. */
+  /** Distinct texts: byte-identical syndicated copies count once. */
   texts: Schema.Number,
+  /** Independent reports: texts with near-verbatim wire copies folded together. */
+  reports: Schema.Number,
   firstSeen: Schema.DateFromString,
   lastSeen: Schema.DateFromString,
   bias: BiasCounts,
@@ -30,6 +32,8 @@ const StoryFields = {
   importance: Schema.Number,
   /** Young, widely covered and still accelerating. */
   breaking: Schema.Boolean,
+  /** Written by a small local model from the story's independent reports; null until one exists. */
+  summary: Schema.NullOr(Schema.String),
 };
 
 export const StorySummary = Schema.Struct(StoryFields);
@@ -49,7 +53,12 @@ export const Source = Schema.Struct({
   seenAt: Schema.DateFromString,
 });
 
-export const StoryDetail = Schema.Struct({ ...StoryFields, sources: Schema.Array(Source) });
+export const StoryDetail = Schema.Struct({
+  ...StoryFields,
+  /** True while a summary has been requested and not yet written; the page receives a `summary` event when it is ready. */
+  summaryPending: Schema.Boolean,
+  sources: Schema.Array(Source),
+});
 
 export class StoriesGroup extends HttpApiGroup.make("stories").add(
   HttpApiEndpoint.get("list", "/stories", {

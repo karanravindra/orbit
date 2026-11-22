@@ -1,6 +1,7 @@
 /** Article extraction with Bun's built-in HTMLRewriter (no DOM, no Readability). */
 import { Effect } from "effect";
 import { ExtractError } from "../errors";
+import { lowQuality, type LowQuality } from "./quality";
 
 export interface Extracted {
   readonly title: string | null;
@@ -13,7 +14,7 @@ export interface Extracted {
   readonly titleKey: string | null;
   readonly textHash: string | null;
   /** null = usable article */
-  readonly rejectReason: "short" | "non_english" | null;
+  readonly rejectReason: "short" | "non_english" | LowQuality | null;
 }
 
 const MIN_BODY_CHARS = 500;
@@ -129,8 +130,15 @@ async function run(html: Uint8Array, baseUrl?: string): Promise<Extracted> {
   const published = meta["article:published_time"] ?? meta["og:article:published_time"];
   const publishedAt = published && !Number.isNaN(Date.parse(published)) ? new Date(published) : null;
 
+  const host = (() => {
+    try {
+      return baseUrl ? new URL(baseUrl).hostname : null;
+    } catch {
+      return null;
+    }
+  })();
   const rejectReason =
-    lang && !/^en\b/i.test(lang) ? "non_english" : body.length < MIN_BODY_CHARS || !title ? "short" : null;
+    lang && !/^en\b/i.test(lang) ? "non_english" : body.length < MIN_BODY_CHARS || !title ? "short" : lowQuality(title, lede, host);
 
   return {
     title,

@@ -4,6 +4,7 @@ import { Effect, Layer, Option, Stream } from "effect";
 import { HttpRouter, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder, HttpApiError } from "effect/http-api";
 import { STORIES_CHANGED } from "../pipeline/Cluster";
+import { SUMMARY_READY } from "../pipeline/Summaries";
 import { Feed } from "../repos/Feed";
 import { TOPICS, isTopic } from "../topics/taxonomy";
 import { Api } from "./Api";
@@ -31,6 +32,10 @@ const StoriesHandlers = HttpApiBuilder.group(
       get: ({ params }) =>
         feed.get(params.id).pipe(
           Effect.flatMap(Option.match({ onNone: () => Effect.fail(new HttpApiError.NotFound()), onSome: Effect.succeed })),
+          // Summaries are written ahead of time, never on a request (the model needs seconds to load). A story opened without
+          // one jumps the writer's queue; the page shows the lede meanwhile and is told over /events when it is ready.
+          Effect.tap((d) => (d.summary === null && d.outlets >= 3 ? feed.wantSummary(d.id) : Effect.void)),
+          Effect.map((d) => ({ ...d, summaryPending: d.summary === null && d.outlets >= 3 })),
         ),
     });
   }),
@@ -48,17 +53,20 @@ const Ui = HttpRouter.add(
 const KEEPALIVE_EVERY = "20 seconds";
 
 /**
- * Server-sent events: one `stories` event per clustering run that changed anything (payload: counts), plus a comment
+ * Server-sent events: one `stories` event per clustering run that changed anything (payload: counts), one `summary` event
+ * per summary written (payload: story id), plus a comment
  * every 20 s so proxies keep the connection open. The Postgres LISTEN lives exactly as long as the response stream, and
  * a dropped connection simply ends the stream; the browser's EventSource reconnects by itself.
  */
 export const events = Effect.gen(function* () {
   const pg = yield* PgClient.PgClient;
-  const notifications = Stream.unwrap(pg.listen(STORIES_CHANGED).pipe(Effect.map((q) => Stream.fromQueue(q))));
-  const body = Stream.merge(
-    notifications.pipe(Stream.map((n) => `event: stories\ndata: ${n.payload}\n\n`)),
+  const channel = (name: string, event: string) =>
+    Stream.unwrap(pg.listen(name).pipe(Effect.map((q) => Stream.fromQueue(q)))).pipe(Stream.map((n) => `event: ${event}\ndata: ${n.payload}\n\n`));
+  const body = Stream.mergeAll([
+    channel(STORIES_CHANGED, "stories"),
+    channel(SUMMARY_READY, "summary"),
     Stream.tick(KEEPALIVE_EVERY).pipe(Stream.map(() => ": keepalive\n\n")),
-  ).pipe(Stream.prepend(["retry: 3000\n\n: connected\n\n"]), Stream.encodeText);
+  ], { concurrency: "unbounded" }).pipe(Stream.prepend(["retry: 3000\n\n: connected\n\n"]), Stream.encodeText);
   return HttpServerResponse.stream(body, { contentType: "text/event-stream", headers: { "cache-control": "no-cache", "x-accel-buffering": "no" } });
 });
 

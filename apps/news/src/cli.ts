@@ -9,9 +9,16 @@ import { Outlets } from "./repos/Outlets";
 import { defaultParams, paramsConfig, type ClusterParams } from "./cluster/params";
 import { Backfill } from "./pipeline/Backfill";
 import { Cluster } from "./pipeline/Cluster";
+import { Summarizer } from "./summaries/Summarizer";
 import { Embed } from "./pipeline/Embed";
 import { Ingest } from "./pipeline/Ingest";
+import { Reports } from "./pipeline/Reports";
+import { Summaries } from "./pipeline/Summaries";
 import { Topics } from "./pipeline/Topics";
+import { Classifier } from "./topics/Classifier";
+import { TOPICS } from "./topics/taxonomy";
+import { formatGold, parseGold, score, type GoldItem } from "./gold/gold";
+import { Feed } from "./repos/Feed";
 import { Embeddings } from "./repos/Embeddings";
 import { Stories } from "./repos/Stories";
 import { FetchQueue } from "./queue/FetchQueue";
@@ -168,7 +175,7 @@ const topicsCmd = Command.make(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       const s = yield* (yield* Topics).run({ all, limit });
-      yield* Console.log(`candidates ${s.candidates}, classified ${s.classified}, failed ${s.failed}`);
+      yield* Console.log(`candidates ${s.candidates}, inherited ${s.inherited}, classified ${s.classified}, parked ${s.pending}, failed ${s.failed}`);
       const rows = yield* sql<{ topic: string | null; n: number }>`select topic, count(*)::int as n from stories group by 1 order by 2 desc`;
       yield* Console.log(rows.map((r) => `${r.topic ?? "-"}=${r.n}`).join(" "));
     }),
@@ -176,10 +183,114 @@ const topicsCmd = Command.make(
 
 const cleanCmd = Command.make("clean", {}, () =>
   Effect.gen(function* () {
-    const [fixed, rejected] = yield* (yield* Backfill).cleanLedes;
-    yield* Console.log(`fixed ${fixed} paywall ledes, rejected ${rejected} paywalled stubs; now run: embed, then cluster --rebuild`);
+    const backfill = yield* Backfill;
+    const [fixed, rejected] = yield* backfill.cleanLedes;
+    const q = yield* backfill.quality;
+    yield* Console.log(`fixed ${fixed} paywall ledes, rejected ${rejected} paywalled stubs`);
+    yield* Console.log(`rejected as not news reports: ${Object.entries(q).map(([k, n]) => `${k}=${n}`).join(" ") || "none"}`);
+    yield* Console.log("now run: embed, then cluster --rebuild (only needed if ledes changed)");
   }),
-).pipe(Command.withDescription("Repair paywall/cookie-banner ledes stored before extraction filtered them"));
+).pipe(Command.withDescription("Repair paywall ledes and reject press releases, roundups and listicles stored before those filters existed"));
+
+const reportsCmd = Command.make(
+  "reports",
+  { all: Flag.Boolean("all").pipe(Flag.withDescription("Recompute every recent story"), Flag.withDefault(false)) },
+  ({ all }) =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const s = yield* (yield* Reports).run({ all });
+      yield* Console.log(`${s.changed} stories updated`);
+      const rows = yield* sql<{ id: number; indep: number; texts: number; outlets: number }>`
+        select g.id, g.indep, g.indep_texts as texts,
+               (select count(distinct a.domain)::int from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null where t.story_id = g.id) as outlets
+        from stories g where g.indep is not null order by g.indep_texts desc limit 8`;
+      for (const r of rows) yield* Console.log(`#${r.id}: ${r.outlets} outlets, ${r.texts} texts, ${r.indep} independent reports`);
+    }),
+).pipe(Command.withDescription("Count independent reports per story (wire copies folded together)"));
+
+const summarizeCmd = Command.make(
+  "summarize",
+  {
+    story: Flag.Int("story").pipe(Flag.withDescription("Write the summary for one story id"), Flag.optional),
+    force: Flag.Boolean("force").pipe(Flag.withDescription("Rewrite even if the current summary is up to date"), Flag.withDefault(false)),
+    budget: Flag.Int("seconds").pipe(Flag.withDescription("Time budget for a pass over the most visible stories"), Flag.withDefault(120)),
+  },
+  ({ story, force, budget }) =>
+    Effect.gen(function* () {
+      const summaries = yield* Summaries;
+      yield* (yield* Summarizer).warm;
+      if (Option.isSome(story)) {
+        const wrote = yield* summaries.write(story.value, force).pipe(Effect.catch((e) => Console.log(`failed: ${e.message}`).pipe(Effect.as(false))));
+        const d = Option.getOrNull(yield* (yield* Feed).get(story.value));
+        yield* Console.log(wrote ? "written:" : "unchanged:", d?.summary ?? "(none)");
+        return;
+      }
+      const s = yield* summaries.run({ budgetMs: budget * 1000, max: 1000 });
+      yield* Console.log(`demand ${s.demand}, scheduled ${s.scheduled}, failed ${s.failed}, up to date ${s.skipped}`);
+    }),
+).pipe(Command.withDescription("Write summaries now: one story (--story), or a pass over the most visible stories lacking one"));
+
+const GOLD_FILE = "data/gold/topics.jsonl";
+const goldSampleCmd = Command.make(
+  "sample",
+  { n: Flag.Int("n").pipe(Flag.withDescription("Stories to add"), Flag.withDefault(200)), file: Flag.String("file").pipe(Flag.withDefault(GOLD_FILE)) },
+  ({ n, file }) =>
+    Effect.gen(function* () {
+      const have = (yield* Effect.promise(() => Bun.file(file).exists())) ? parseGold(yield* Effect.promise(() => Bun.file(file).text())) : [];
+      const taken = new Set(have.map((g) => g.key));
+      const fresh = (yield* (yield* Topics).inputs({ all: true, limit: n * 3, random: true, days: 30 })).filter((i) => !taken.has(i.headlineKey)).slice(0, n);
+      const items: GoldItem[] = [...have, ...fresh.map((i) => ({ key: i.headlineKey, headline: i.headline, titles: i.titles, label: null }))];
+      yield* Effect.promise(() => Bun.write(file, formatGold(items)));
+      yield* Console.log(`${file}: ${items.length} stories (${fresh.length} new, ${items.filter((i) => !i.label).length} unlabelled). Label them with: gold label`);
+    }),
+).pipe(Command.withDescription("Draw a random sample of stories into the gold file (unlabelled)"));
+
+const goldLabelCmd = Command.make("label", { file: Flag.String("file").pipe(Flag.withDefault(GOLD_FILE)) }, ({ file }) =>
+  Effect.gen(function* () {
+    const items = parseGold(yield* Effect.promise(() => Bun.file(file).text()));
+    const keys = "1234567890";
+    const legend = TOPICS.map((t, i) => `${keys[i]}=${t.id}`).join("  ");
+    const ask = (q: string) => Effect.promise(async () => (prompt(q) ?? "q").trim().toLowerCase());
+    let done = 0;
+    for (const it of items) {
+      if (it.label) continue;
+      yield* Console.log(`\n${items.filter((i) => i.label).length}/${items.length} labelled\n  ${it.headline}\n${it.titles.map((t) => `    - ${t}`).join("\n")}\n  ${legend}   s=skip  q=quit`);
+      const a = yield* ask("section: ");
+      if (a === "q") break;
+      const idx = keys.indexOf(a.slice(0, 1));
+      if (a === "s" || idx < 0 || idx >= TOPICS.length) continue;
+      const b = a.length > 1 ? keys.indexOf(a.slice(1, 2)) : -1; // "26" = label 2, also acceptable 6
+      (items as GoldItem[])[items.indexOf(it)] = { ...it, label: TOPICS[idx]!.id, alt: b >= 0 && b < TOPICS.length ? TOPICS[b]!.id : null };
+      done++;
+      yield* Effect.promise(() => Bun.write(file, formatGold(items)));
+    }
+    yield* Console.log(`labelled ${done} this session; ${items.filter((i) => i.label).length}/${items.length} total`);
+  }),
+).pipe(Command.withDescription("Label gold stories in the terminal: press a number (two digits = label + also-acceptable)"));
+
+const goldEvalCmd = Command.make(
+  "eval",
+  {
+    file: Flag.String("file").pipe(Flag.withDefault(GOLD_FILE)),
+    model: Flag.String("model").pipe(Flag.withDescription("Override TOPIC_MODEL to compare models"), Flag.optional),
+    misses: Flag.Boolean("misses").pipe(Flag.withDescription("List every strict miss"), Flag.withDefault(false)),
+  },
+  ({ file, model, misses }) =>
+    Effect.gen(function* () {
+      const labelled = parseGold(yield* Effect.promise(() => Bun.file(file).text())).filter((g) => g.label);
+      if (labelled.length === 0) return yield* Console.log("no labelled stories: run gold sample, then gold label");
+      const base = yield* Classifier;
+      const c = Option.isSome(model) ? yield* Classifier.make({ baseUrl: process.env.TOPIC_BASE_URL ?? "http://localhost:11434", model: model.value }) : base;
+      const rows = yield* Effect.forEach(labelled, (g) => c.classify(g.headline, g.titles).pipe(Effect.map((predicted) => ({ ...g, label: g.label!, predicted })), Effect.catch(() => Effect.succeed({ ...g, label: g.label!, predicted: "error" }))), { concurrency: 4 });
+      const r = score(rows);
+      yield* Console.log(`${c.model} on ${r.n} stories: strict ${(r.strict * 100).toFixed(1)}%  lenient ${(r.lenient * 100).toFixed(1)}%`);
+      for (const t of r.perTopic) yield* Console.log(`  ${t.topic.padEnd(14)} n=${String(t.support).padEnd(3)} precision ${(t.precision * 100).toFixed(0)}%  recall ${(t.recall * 100).toFixed(0)}%`);
+      yield* Console.log("top confusions:", r.confusions.map((x) => `${x.gold}->${x.predicted} x${x.count}`).join(", ") || "none");
+      if (misses) for (const m of rows.filter((x) => x.predicted !== x.label)) yield* Console.log(`  [${m.label}${m.alt ? "/" + m.alt : ""} -> ${m.predicted}] ${m.headline}`);
+    }),
+).pipe(Command.withDescription("Score the topic classifier against the labelled gold set"));
+
+const goldCmd = Command.make("gold").pipe(Command.withDescription("Hand-labelled topic evaluation set"), Command.withSubcommands([goldSampleCmd, goldLabelCmd, goldEvalCmd]));
 
 const outletsImportCmd = Command.make(
   "import",
@@ -221,7 +332,7 @@ const outletsCmd = Command.make("outlets").pipe(Command.withDescription("Outlet 
 
 export const news = Command.make("news").pipe(
   Command.withDescription("orbit news pipeline"),
-  Command.withSubcommands([migrateCmd, workerCmd, ingestCmd, enqueueCmd, embedCmd, clusterCmd, storiesCmd, serveCmd, imagesCmd, topicsCmd, cleanCmd, outletsCmd, statusCmd]),
+  Command.withSubcommands([migrateCmd, workerCmd, ingestCmd, enqueueCmd, embedCmd, clusterCmd, storiesCmd, serveCmd, imagesCmd, topicsCmd, reportsCmd, summarizeCmd, goldCmd, cleanCmd, outletsCmd, statusCmd]),
 );
 
 export const cli = news.pipe(Command.run({ version: "0.2.0" }));

@@ -12,6 +12,10 @@ export const TOPICS = [
   { id: "weather", label: "Weather", hint: "forecasts, storms, floods, heat, snow, travel disruption from weather" },
 ] as const;
 
+/** Sections where "who is not covering this" is a meaningful bias signal. A hockey game or a film remake is not a blindspot. */
+export const BLINDSPOT_TOPICS: ReadonlyArray<string> = ["politics", "world", "business"];
+export const blindspotEligible = (topic: string | null): boolean => topic !== null && BLINDSPOT_TOPICS.includes(topic);
+
 export type TopicId = (typeof TOPICS)[number]["id"];
 export const TOPIC_IDS: ReadonlyArray<TopicId> = TOPICS.map((t) => t.id);
 export const isTopic = (s: string): s is TopicId => (TOPIC_IDS as ReadonlyArray<string>).includes(s);
