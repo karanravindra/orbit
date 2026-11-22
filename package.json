@@ -1,0 +1,16 @@
+{
+  "name": "orbit",
+  "type": "module",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "typecheck": "bun check"
+  },
+  "devDependencies": {
+    "@orbit/tsconfig": "workspace:*",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  }
+}
