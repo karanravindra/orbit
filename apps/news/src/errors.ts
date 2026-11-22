@@ -30,6 +30,11 @@ export class EmbedError extends Schema.TaggedError<EmbedError>()("EmbedError", {
   cause: Schema.optional(Schema.Defect()),
 }) {}
 
+export class ClassifyError extends Schema.TaggedError<ClassifyError>()("ClassifyError", {
+  message: Schema.String,
+  cause: Schema.optional(Schema.Defect()),
+}) {}
+
 /** The DB holds vectors from a different model/dimension/prefix than the one configured. */
 export class VariantMismatch extends Schema.TaggedError<VariantMismatch>()("VariantMismatch", {
   stored: Schema.String,

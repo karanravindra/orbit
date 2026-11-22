@@ -3,6 +3,7 @@ import { paramsConfig } from "../cluster/params";
 import { Cluster } from "../pipeline/Cluster";
 import { Embed } from "../pipeline/Embed";
 import { Ingest } from "../pipeline/Ingest";
+import { Topics } from "../pipeline/Topics";
 import { BullMq } from "./BullMq";
 
 const MIN = 60_000;
@@ -12,6 +13,7 @@ const MIN = 60_000;
  *   ingest  every 15 min  GDELT slices -> ledger -> fetch queue
  *   embed   every 30 s    new article texts -> Ollama -> vectors
  *   cluster every 2 min   new vectors -> stories
+ *   topics  every 2 min   unclassified stories -> section (small local LLM)
  * Every stage is idempotent and reads its backlog from Postgres, so a missed or failed tick just runs again later.
  */
 export class Schedulers extends Context.Service<Schedulers, {
@@ -25,6 +27,7 @@ export class Schedulers extends Context.Service<Schedulers, {
       const ingest = yield* Ingest;
       const embed = yield* Embed;
       const cluster = yield* Cluster;
+      const topics = yield* Topics;
 
       /** Upsert a repeating job (idempotent across restarts) and process it one at a time. */
       const every = <D extends object>(name: string, ms: number, data: D, run: (d: D) => Effect.Effect<unknown, unknown>) =>
@@ -41,6 +44,7 @@ export class Schedulers extends Context.Service<Schedulers, {
         yield* every("news-ingest", 15 * MIN, { hours: opts.ingestHours }, (d) => ingest.run(d.hours));
         yield* every("news-embed", 30_000, {}, () => embed.run());
         yield* every("news-cluster", 2 * MIN, {}, () => cluster.run(params));
+        yield* every("news-topics", 2 * MIN, {}, () => topics.run());
       });
 
       return Schedulers.of({ start });

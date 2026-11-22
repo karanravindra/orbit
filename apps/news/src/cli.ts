@@ -11,6 +11,7 @@ import { Backfill } from "./pipeline/Backfill";
 import { Cluster } from "./pipeline/Cluster";
 import { Embed } from "./pipeline/Embed";
 import { Ingest } from "./pipeline/Ingest";
+import { Topics } from "./pipeline/Topics";
 import { Embeddings } from "./repos/Embeddings";
 import { Stories } from "./repos/Stories";
 import { FetchQueue } from "./queue/FetchQueue";
@@ -157,6 +158,22 @@ const imagesCmd = Command.make(
     }),
 ).pipe(Command.withDescription("Backfill share images for articles in stories (new articles get theirs at fetch time)"));
 
+const topicsCmd = Command.make(
+  "topics",
+  {
+    all: Flag.Boolean("all").pipe(Flag.withDescription("Reclassify every recent story, not just new or grown ones"), Flag.withDefault(false)),
+    limit: Flag.Int("limit").pipe(Flag.withDescription("Max stories to classify"), Flag.withDefault(500)),
+  },
+  ({ all, limit }) =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const s = yield* (yield* Topics).run({ all, limit });
+      yield* Console.log(`candidates ${s.candidates}, classified ${s.classified}, failed ${s.failed}`);
+      const rows = yield* sql<{ topic: string | null; n: number }>`select topic, count(*)::int as n from stories group by 1 order by 2 desc`;
+      yield* Console.log(rows.map((r) => `${r.topic ?? "-"}=${r.n}`).join(" "));
+    }),
+).pipe(Command.withDescription("Classify stories into sections with the local model"));
+
 const cleanCmd = Command.make("clean", {}, () =>
   Effect.gen(function* () {
     const [fixed, rejected] = yield* (yield* Backfill).cleanLedes;
@@ -204,7 +221,7 @@ const outletsCmd = Command.make("outlets").pipe(Command.withDescription("Outlet 
 
 export const news = Command.make("news").pipe(
   Command.withDescription("orbit news pipeline"),
-  Command.withSubcommands([migrateCmd, workerCmd, ingestCmd, enqueueCmd, embedCmd, clusterCmd, storiesCmd, serveCmd, imagesCmd, cleanCmd, outletsCmd, statusCmd]),
+  Command.withSubcommands([migrateCmd, workerCmd, ingestCmd, enqueueCmd, embedCmd, clusterCmd, storiesCmd, serveCmd, imagesCmd, topicsCmd, cleanCmd, outletsCmd, statusCmd]),
 );
 
 export const cli = news.pipe(Command.run({ version: "0.2.0" }));

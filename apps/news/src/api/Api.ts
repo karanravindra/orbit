@@ -24,6 +24,8 @@ const StoryFields = {
   bias: BiasCounts,
   /** The side of the spectrum that mostly ignores this story, if any. */
   blindspot: Schema.NullOr(Schema.Literals(["left", "right"])),
+  /** Section id, null until classified. */
+  topic: Schema.NullOr(Schema.String),
 };
 
 export const StorySummary = Schema.Struct(StoryFields);
@@ -54,8 +56,14 @@ export class StoriesGroup extends HttpApiGroup.make("stories").add(
       hours: Schema.optional(Schema.FiniteFromString),
       sort: Schema.optional(Schema.Literals(["coverage", "recent"])),
       blindspot: Schema.optional(Schema.Literals(["true", "false"])),
+      /** Section id, e.g. politics (see GET /topics). */
+      topic: Schema.optional(Schema.String),
     },
     success: Schema.Array(StorySummary),
+  }),
+  HttpApiEndpoint.get("topics", "/topics", {
+    query: { minOutlets: Schema.optional(Schema.FiniteFromString), hours: Schema.optional(Schema.FiniteFromString) },
+    success: Schema.Array(Schema.Struct({ topic: Schema.NullOr(Schema.String), label: Schema.String, stories: Schema.Number })),
   }),
   HttpApiEndpoint.get("get", "/stories/:id", {
     params: { id: Schema.FiniteFromString },

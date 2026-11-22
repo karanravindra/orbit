@@ -31,6 +31,19 @@
   .filters select, .filters button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); cursor: pointer; }
   .filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 
+  .tabs { display: flex; gap: 6px; overflow-x: auto; margin: -8px 0 24px; padding: 2px 0 10px; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs a { flex: none; display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; text-decoration: none; color: var(--muted); }
+  .tabs a small { font-weight: 500; font-size: 12px; opacity: .8; }
+  .tabs a:hover { color: var(--ink); background: var(--soft); }
+  .tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+  .sec { margin-top: 40px; }
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 14px; }
+  .sec-head h2 { font: 700 22px/1.2 var(--serif); margin: 0; letter-spacing: -.01em; }
+  .sec-head a { font-size: 14px; color: var(--muted); text-decoration: none; }
+  .sec-head a:hover { color: var(--ink); text-decoration: underline; }
+  .chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--soft); color: var(--ink); text-decoration: none; }
+  .chip:hover { background: var(--line); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
   .card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-decoration: none; color: inherit; box-shadow: var(--shadow); transition: transform .15s ease, border-color .15s ease; }
   a.card:hover { transform: translateY(-2px); border-color: var(--muted); }
@@ -99,12 +112,16 @@
     <a class="brand" href="#/">Stories</a>
     <div class="filters" id="filters"></div>
   </header>
+  <nav class="tabs" id="tabs" aria-label="Sections"></nav>
   <div id="live" role="status" aria-live="polite"></div>
   <div id="app"></div>
 </main>
 <script>
 const app = document.getElementById("app");
 const filtersEl = document.getElementById("filters");
+const tabsEl = document.getElementById("tabs");
+const clean = (h) => String(h).replace(/\s+\|\s+[^|]{3,60}$/, "");
+const labelOf = (id) => (id ? id[0].toUpperCase() + id.slice(1) : "Unsorted");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : "");
 
@@ -172,24 +189,52 @@ const card = (s, hero) => `
   <a class="card${hero ? " hero" : ""}" href="#/story/${s.id}">
     <div class="thumb">${thumb(s.image, s.id, s.headline, blindspotBadge(s))}</div>
     <div class="body">
-      <h2>${esc(s.headline)}</h2>
+      <h2>${esc(clean(s.headline))}</h2>
       <div class="meta">${counts(s)}<span>updated ${ago(s.lastSeen)}</span></div>
       ${biasBar(s.bias)}
     </div>
   </a>`;
 
-async function list() {
+const tabsUi = (topics, current) => {
+  const total = topics.reduce((n, t) => n + t.stories, 0);
+  const tab = (href, name, n, on) => `<a href="${href}"${on ? ' aria-current="page"' : ""}>${esc(name)}${n != null ? ` <small>${n}</small>` : ""}</a>`;
+  tabsEl.innerHTML = tab("#/", "Top", total, !current) + topics.filter((t) => t.topic).map((t) => tab("#/t/" + t.topic, t.label, t.stories, current === t.topic)).join("");
+};
+const sectionHtml = (id, title, items, more) => `
+  <section class="sec">
+    <div class="sec-head"><h2>${esc(title)}</h2>${more ? `<a href="#/t/${id}">All ${esc(title)} →</a>` : ""}</div>
+    <div class="grid">${items.map((s) => card(s, false)).join("")}</div>
+  </section>`;
+
+async function list(topic) {
   filtersEl.style.display = "";
+  tabsEl.style.display = "";
   filtersUi();
   app.innerHTML = '<div class="grid"><div class="skeleton" style="grid-column:1/-1"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>';
-  const q = new URLSearchParams({ limit: "36", minOutlets: String(state.minOutlets), sort: state.sort, hours: String(state.hours), blindspot: String(state.blindspot) });
-  const stories = await api("/stories?" + q);
+  const base = { minOutlets: String(state.minOutlets), sort: state.sort, hours: String(state.hours), blindspot: String(state.blindspot) };
+  const [topics, stories] = await Promise.all([
+    api("/topics?" + new URLSearchParams({ minOutlets: base.minOutlets, hours: base.hours })),
+    api("/stories?" + new URLSearchParams({ ...base, limit: topic ? "60" : "100", ...(topic ? { topic } : {}) })),
+  ]);
+  tabsUi(topics, topic);
   if (!stories.length) { app.innerHTML = '<p class="empty">No stories match these filters.</p>'; return; }
-  app.innerHTML = `<div class="grid">${stories.map((s, i) => card(s, i === 0)).join("")}</div>`;
+  if (topic) { app.innerHTML = `<div class="grid">${stories.map((s, i) => card(s, i === 0)).join("")}</div>`; return; }
+  // Front page: the biggest stories first, then one short section per topic (most stories first).
+  const top = stories.slice(0, 7);
+  const rest = stories.slice(7);
+  const by = new Map();
+  for (const s of rest) { const k = s.topic || ""; if (!by.has(k)) by.set(k, []); by.get(k).push(s); }
+  // Sections ordered by their biggest story, so a quiet topic with many small stories does not outrank breaking news.
+  const order = [...by.keys()].filter(Boolean).sort((x, y) => by.get(y)[0].outlets - by.get(x)[0].outlets);
+  if (by.has("")) order.push("");
+  app.innerHTML =
+    `<div class="grid">${top.map((s, i) => card(s, i === 0)).join("")}</div>` +
+    order.map((k) => sectionHtml(k, labelOf(k), by.get(k).slice(0, 6), by.get(k).length > 0 && (topics.find((t) => (t.topic || "") === k)?.stories ?? 0) > 6)).join("");
 }
 
 async function detail(id) {
   filtersEl.style.display = "none";
+  tabsEl.style.display = "none";
   app.innerHTML = '<div class="skeleton"></div>';
   const s = await api("/stories/" + id);
   const groups = { left: [], center: [], right: [], unrated: [] };
@@ -219,11 +264,12 @@ async function detail(id) {
     </section>`;
   const hasImg = !!safeUrl(s.image);
   app.innerHTML = `
-    <a class="back" href="#/">← All stories</a>
+    <a class="back" href="#/${s.topic ? "t/" + s.topic : ""}">← ${s.topic ? esc(labelOf(s.topic)) : "All stories"}</a>
     <div class="story-head${hasImg ? "" : " noimg"}">
       ${hasImg ? `<div class="thumb">${thumb(s.image, s.id, s.headline, blindspotBadge(s))}</div>` : ""}
       <div class="body">
-        <h1>${esc(s.headline)}</h1>
+        ${s.topic ? `<div><a class="chip" href="#/t/${esc(s.topic)}">${esc(labelOf(s.topic))}</a></div>` : ""}
+        <h1>${esc(clean(s.headline))}</h1>
         <div class="meta">${counts(s)}<span>${s.articles} links</span><span>first seen ${ago(s.firstSeen)}</span><span>updated ${ago(s.lastSeen)}</span>${hasImg || !s.blindspot ? "" : `<span class="tag low">${s.blindspot === "left" ? "Left" : "Right"} blindspot</span>`}</div>
         ${biasBar(s.bias)}
       </div>
@@ -236,7 +282,8 @@ async function detail(id) {
 async function route() {
   document.title = "Stories";
   const m = location.hash.match(/^#\/story\/(\d+)$/);
-  try { await (m ? detail(m[1]) : list()); }
+  const t = location.hash.match(/^#\/t\/([a-z]+)$/);
+  try { await (m ? detail(m[1]) : list(t ? t[1] : "")); }
   catch (e) { app.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
   if (m) window.scrollTo(0, 0);
 }
@@ -257,7 +304,7 @@ function showPending() {
 }
 function clearPending() { pending = { seeded: 0, joined: 0 }; live.innerHTML = ""; }
 addEventListener("hashchange", clearPending);
-if ("EventSource" in window) {
+if ("EventSource" in window && !location.search.includes("nolive")) {
   const es = new EventSource("/events");
   es.addEventListener("stories", (e) => {
     let d = {};

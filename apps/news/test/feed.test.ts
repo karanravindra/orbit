@@ -91,9 +91,14 @@ test.skipIf(!dbUp)("Feed: bias spread per story, suffix rating match, blindspot,
       const missing = yield* feed.get(-1);
       const cov = yield* outlets.coverage;
       const fresh = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 });
+      const unsorted = yield* feed.topics({ minOutlets: 3, hours: 24 * 365 * 10 });
+      yield* sql`update stories set topic = 'politics' where id = ${id}`;
+      const sorted = yield* feed.topics({ minOutlets: 3, hours: 24 * 365 * 10 });
+      const inTopic = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 * 365 * 10, topic: "politics" });
+      const otherTopic = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 * 365 * 10, topic: "sports" });
       yield* sql`update stories set last_seen = '2000-01-01'`;
       const stale = yield* feed.list({ limit: 10, minOutlets: 3, sort: "coverage", hours: 24 });
-      return { id: Number(id), listed, strict, blind, detail, missing, cov, fresh, stale };
+      return { id: Number(id), unsorted, sorted, inTopic, otherTopic, listed, strict, blind, detail, missing, cov, fresh, stale };
     }).pipe(Effect.orDie),
   );
 
@@ -113,6 +118,10 @@ test.skipIf(!dbUp)("Feed: bias spread per story, suffix rating match, blindspot,
   expect(out.cov.total).toBeGreaterThan(0);
   expect(s.image).toBe("https://img.test/story.jpg"); // most common non-logo image
   expect(d.sources.find((a) => a.domain === "u.test")?.lede).toBe("A real first paragraph that is long enough to count as one."); // paywall lede replaced
+  expect(out.unsorted).toEqual([{ topic: null, stories: 1 }]);
+  expect(out.sorted).toEqual([{ topic: "politics", stories: 1 }]);
+  expect(out.inTopic.map((x) => x.topic)).toEqual(["politics"]);
+  expect(out.otherTopic).toEqual([]);
   expect(out.fresh.length).toBe(1);
   expect(out.stale).toEqual([]); // not updated within the window
 });

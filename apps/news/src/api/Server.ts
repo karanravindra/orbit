@@ -5,6 +5,7 @@ import { HttpRouter, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder, HttpApiError } from "effect/http-api";
 import { STORIES_CHANGED } from "../pipeline/Cluster";
 import { Feed } from "../repos/Feed";
+import { TOPICS, isTopic } from "../topics/taxonomy";
 import { Api } from "./Api";
 
 const StoriesHandlers = HttpApiBuilder.group(
@@ -21,7 +22,12 @@ const StoriesHandlers = HttpApiBuilder.group(
           sort: query.sort ?? "coverage",
           hours: clamp(query.hours, 48, 1, 24 * 90),
           blindspotOnly: query.blindspot === "true",
+          topic: query.topic && isTopic(query.topic) ? query.topic : undefined,
         }),
+      topics: ({ query }) =>
+        feed.topics({ minOutlets: clamp(query.minOutlets, 3, 1, 50), hours: clamp(query.hours, 48, 1, 24 * 90) }).pipe(
+          Effect.map((rows) => rows.map((r) => ({ ...r, label: TOPICS.find((t) => t.id === r.topic)?.label ?? "Unsorted" }))),
+        ),
       get: ({ params }) =>
         feed.get(params.id).pipe(
           Effect.flatMap(Option.match({ onNone: () => Effect.fail(new HttpApiError.NotFound()), onSome: Effect.succeed })),

@@ -18,6 +18,8 @@ export interface StorySummary {
   readonly lastSeen: Date;
   readonly bias: BiasCounts;
   readonly blindspot: "left" | "right" | null;
+  /** Section id (see topics/taxonomy), null until classified. */
+  readonly topic: string | null;
 }
 export interface StoryArticle {
   readonly url: string;
@@ -55,7 +57,9 @@ const withBias = (r: RawSummary): StorySummary => {
 /** Read model for the API: stories with their outlet bias spread. DB failures are defects. */
 export class Feed extends Context.Service<Feed, {
   /** Stories updated within the last `hours`. */
-  list(opts: { readonly limit: number; readonly minOutlets: number; readonly sort: Sort; readonly hours: number; readonly blindspotOnly?: boolean }): Effect.Effect<ReadonlyArray<StorySummary>>;
+  list(opts: { readonly limit: number; readonly minOutlets: number; readonly sort: Sort; readonly hours: number; readonly blindspotOnly?: boolean; readonly topic?: string }): Effect.Effect<ReadonlyArray<StorySummary>>;
+  /** Stories per section (>= minOutlets domains, updated within `hours`). */
+  topics(opts: { readonly minOutlets: number; readonly hours: number }): Effect.Effect<ReadonlyArray<{ readonly topic: string | null; readonly stories: number }>>;
   get(id: number): Effect.Effect<Option.Option<StoryDetail>>;
 }>()("news/Feed") {
   static readonly layer = Layer.effect(
@@ -75,7 +79,7 @@ export class Feed extends Context.Service<Feed, {
           select story_id, count(*)::int as raw_outlets, sum(n)::int as articles
           from st group by story_id),
         picked as (
-          select s.story_id, s.articles, g.first_seen, g.last_seen, g.centroid
+          select s.story_id, s.articles, g.first_seen, g.last_seen, g.centroid, g.topic
           from s join stories g on g.id = s.story_id
           where ${storyFilter}
           order by ${inner} limit ${pool}),
@@ -86,7 +90,7 @@ export class Feed extends Context.Service<Feed, {
         b as (
           select story_id, owner, (array_agg(bias order by bias is null, bias))[1] as bias
           from rs group by story_id, owner)
-        select p.story_id as id, p.articles, p.first_seen, p.last_seen,
+        select p.story_id as id, p.articles, p.topic, p.first_seen, p.last_seen,
                (select count(*) from story_texts t where t.story_id = p.story_id)::int as texts,
                (select a.title from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
                   join embeddings e on e.embed_key = t.embed_key
@@ -103,12 +107,12 @@ export class Feed extends Context.Service<Feed, {
                (select count(*) from b where b.story_id = p.story_id and b.bias is null)::int as unrated
         from picked p`;
 
-      const list = Effect.fn("Feed.list")(function* (opts: { limit: number; minOutlets: number; sort: Sort; hours: number; blindspotOnly?: boolean }) {
+      const list = Effect.fn("Feed.list")(function* (opts: { limit: number; minOutlets: number; sort: Sort; hours: number; blindspotOnly?: boolean; topic?: string }) {
         const inner = opts.sort === "recent" ? sql`g.last_seen desc, s.raw_outlets desc` : sql`s.raw_outlets desc, g.last_seen desc`;
         // Owner grouping and blindspots are decided after scoring, so look at a wider candidate pool first.
         const pool = Math.max(opts.limit * (opts.blindspotOnly ? 10 : 3), 200);
         const since = new Date(Date.now() - opts.hours * 3_600_000);
-        const rows = yield* summaries(sql`s.raw_outlets >= ${opts.minOutlets} and g.last_seen >= ${since}`, inner, pool);
+        const rows = yield* summaries(sql`s.raw_outlets >= ${opts.minOutlets} and g.last_seen >= ${since} and (${opts.topic ?? null}::text is null or g.topic = ${opts.topic ?? null})`, inner, pool);
         const out = rows.map(withBias).filter((r) => r.outlets >= opts.minOutlets && (!opts.blindspotOnly || r.blindspot !== null));
         out.sort(opts.sort === "recent" ? (a, b) => +b.lastSeen - +a.lastSeen || b.outlets - a.outlets : (a, b) => b.outlets - a.outlets || +b.lastSeen - +a.lastSeen);
         return out.slice(0, opts.limit);
@@ -128,7 +132,18 @@ export class Feed extends Context.Service<Feed, {
         return Option.some<StoryDetail>({ ...withBias(head), sources: sorted });
       }, die);
 
-      return Feed.of({ list, get });
+      const topics = Effect.fn("Feed.topics")(function* (opts: { minOutlets: number; hours: number }) {
+        const since = new Date(Date.now() - opts.hours * 3_600_000);
+        return yield* sql<{ topic: string | null; stories: number }>`
+          select g.topic, count(*)::int as stories
+          from stories g
+          where g.last_seen >= ${since}
+            and (select count(distinct a.domain) from story_texts t join articles a on a.embed_key = t.embed_key and a.reject_reason is null
+                 where t.story_id = g.id) >= ${opts.minOutlets}
+          group by g.topic order by 2 desc`;
+      }, die);
+
+      return Feed.of({ list, get, topics });
     }),
   );
 }
