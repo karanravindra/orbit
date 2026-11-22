@@ -64,4 +64,4 @@ export const events = Effect.gen(function* () {
 
 /** The HTTP server: JSON API under /stories, the one-page UI at /. Needs `Feed` and `PgClient`. */
 export const serve = (port: number) =>
-  HttpRouter.serve(Layer.mergeAll(ApiRoutes, Ui, HttpRouter.add("GET", "/events", events))).pipe(Layer.provide(BunHttpServer.layer({ port })));
+  HttpRouter.serve(Layer.mergeAll(ApiRoutes, Ui, HttpRouter.add("GET", "/events", events))).pipe(Layer.provide(BunHttpServer.layer({ port, gracefulShutdownTimeout: "1 second" })));
