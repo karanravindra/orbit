@@ -1,10 +1,26 @@
 {
   "name": "@orbit/news",
-  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "typecheck": "bun check"
+    "db:up": "docker compose up -d --wait db redis",
+    "db:migrate": "bun src/main.ts migrate",
+    "ingest": "bun src/main.ts ingest",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p .",
+    "worker": "bun src/main.ts worker",
+    "enqueue": "bun src/main.ts enqueue",
+    "serve": "bun src/main.ts serve",
+    "outlets:import": "bun src/main.ts outlets import",
+    "status": "bun src/main.ts status"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.1.5",
+    "@effect/sql-pg": "4.1.5",
+    "bullmq": "^6.7.8",
+    "effect": "4.1.5",
+    "fflate": "0.8.2",
+    "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@orbit/tsconfig": "workspace:*"

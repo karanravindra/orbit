@@ -1,4 +1,4 @@
 {
   "extends": "@orbit/tsconfig/bun.json",
-  "include": ["src"]
+  "include": ["src", "test"]
 }
