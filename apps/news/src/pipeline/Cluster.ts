@@ -5,6 +5,8 @@ import type { ClusterParams } from "../cluster/params";
 import { ClusterStale } from "../errors";
 import { Stories, type Neighbour, type Text } from "../repos/Stories";
 
+/** Postgres NOTIFY channel fired after a clustering run changed stories. */
+export const STORIES_CHANGED = "stories_changed";
 const CHUNK = 200; // texts per transaction
 const MERGE_ROUNDS = 3;
 const HOUR = 3_600_000;
@@ -118,6 +120,10 @@ export class Cluster extends Context.Service<Cluster, {
           for (const k of Object.keys(total) as (keyof typeof total)[]) total[k] += s[k];
           const secs = (performance.now() - t0) / 1000;
           yield* Effect.log(`clustered ${total.considered} texts (${total.joined} joined, ${total.seeded} new stories, ${total.noise} noise, ${total.merges} merges) @ ${(total.considered / secs).toFixed(0)}/s`);
+        }
+        // Tell listeners (the API's /events stream) that story pages changed. Best effort: a failed notify must not fail clustering.
+        if (total.joined + total.seeded + total.merges > 0) {
+          yield* sql`select pg_notify(${STORIES_CHANGED}, ${JSON.stringify({ joined: total.joined, seeded: total.seeded, merges: total.merges })})`.pipe(Effect.ignore);
         }
         return total as ClusterStats;
       });

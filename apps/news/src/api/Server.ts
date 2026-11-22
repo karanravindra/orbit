@@ -1,7 +1,9 @@
 import { BunHttpServer } from "@effect/platform-bun";
-import { Effect, Layer, Option } from "effect";
+import { PgClient } from "@effect/sql-pg";
+import { Effect, Layer, Option, Stream } from "effect";
 import { HttpRouter, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder, HttpApiError } from "effect/http-api";
+import { STORIES_CHANGED } from "../pipeline/Cluster";
 import { Feed } from "../repos/Feed";
 import { Api } from "./Api";
 
@@ -37,6 +39,23 @@ const Ui = HttpRouter.add(
   Effect.promise(() => Bun.file(new URL("../web/index.html", import.meta.url)).text()).pipe(Effect.map((html) => HttpServerResponse.html(html))),
 );
 
-/** The HTTP server: JSON API under /stories, the one-page UI at /. Needs `Feed`. */
+const KEEPALIVE_EVERY = "20 seconds";
+
+/**
+ * Server-sent events: one `stories` event per clustering run that changed anything (payload: counts), plus a comment
+ * every 20 s so proxies keep the connection open. The Postgres LISTEN lives exactly as long as the response stream, and
+ * a dropped connection simply ends the stream; the browser's EventSource reconnects by itself.
+ */
+export const events = Effect.gen(function* () {
+  const pg = yield* PgClient.PgClient;
+  const notifications = Stream.unwrap(pg.listen(STORIES_CHANGED).pipe(Effect.map((q) => Stream.fromQueue(q))));
+  const body = Stream.merge(
+    notifications.pipe(Stream.map((n) => `event: stories\ndata: ${n.payload}\n\n`)),
+    Stream.tick(KEEPALIVE_EVERY).pipe(Stream.map(() => ": keepalive\n\n")),
+  ).pipe(Stream.prepend(["retry: 3000\n\n: connected\n\n"]), Stream.encodeText);
+  return HttpServerResponse.stream(body, { contentType: "text/event-stream", headers: { "cache-control": "no-cache", "x-accel-buffering": "no" } });
+});
+
+/** The HTTP server: JSON API under /stories, the one-page UI at /. Needs `Feed` and `PgClient`. */
 export const serve = (port: number) =>
-  HttpRouter.serve(Layer.mergeAll(ApiRoutes, Ui)).pipe(Layer.provide(BunHttpServer.layer({ port })));
+  HttpRouter.serve(Layer.mergeAll(ApiRoutes, Ui, HttpRouter.add("GET", "/events", events))).pipe(Layer.provide(BunHttpServer.layer({ port })));

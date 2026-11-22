@@ -84,6 +84,9 @@
   details { margin-top: 24px; }
   summary { cursor: pointer; color: var(--muted); font-size: 14px; }
 
+  #live:empty { display: none; }
+  #live { position: sticky; top: 12px; z-index: 5; display: flex; justify-content: center; margin-bottom: 16px; }
+  #live button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 16px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); cursor: pointer; box-shadow: var(--shadow); }
   .empty, .err { color: var(--muted); padding: 56px 0; text-align: center; }
   .skeleton { height: 280px; border-radius: 14px; background: linear-gradient(90deg, var(--soft), var(--card), var(--soft)); background-size: 200% 100%; animation: sh 1.2s infinite linear; }
   @keyframes sh { to { background-position: -200% 0; } }
@@ -96,6 +99,7 @@
     <a class="brand" href="#/">Stories</a>
     <div class="filters" id="filters"></div>
   </header>
+  <div id="live" role="status" aria-live="polite"></div>
   <div id="app"></div>
 </main>
 <script>
@@ -238,6 +242,32 @@ async function route() {
 }
 addEventListener("hashchange", route);
 route();
+
+// Live updates: the server pushes a `stories` event after each clustering run that changed anything. We never reshuffle
+// the list under the reader's cursor; we offer a button instead. EventSource reconnects on its own.
+const live = document.getElementById("live");
+let pending = { seeded: 0, joined: 0 };
+function showPending() {
+  const parts = [];
+  if (pending.seeded) parts.push(`${pending.seeded} new ${pending.seeded === 1 ? "story" : "stories"}`);
+  if (pending.joined) parts.push(`${pending.joined} new ${pending.joined === 1 ? "article" : "articles"} added`);
+  live.innerHTML = parts.length ? `<button type="button">${esc(parts.join(" · "))} — show</button>` : "";
+  const btn = live.querySelector("button");
+  if (btn) btn.onclick = () => { clearPending(); route(); window.scrollTo({ top: 0 }); };
+}
+function clearPending() { pending = { seeded: 0, joined: 0 }; live.innerHTML = ""; }
+addEventListener("hashchange", clearPending);
+if ("EventSource" in window) {
+  const es = new EventSource("/events");
+  es.addEventListener("stories", (e) => {
+    let d = {};
+    try { d = JSON.parse(e.data); } catch {}
+    pending.seeded += d.seeded || 0;
+    pending.joined += d.joined || 0;
+    if (!location.hash.startsWith("#/story/")) showPending(); // on a story page the banner would be noise
+  });
+  addEventListener("pagehide", () => es.close());
+}
 </script>
 </body>
 </html>
