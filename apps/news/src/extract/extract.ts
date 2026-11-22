@@ -8,6 +8,8 @@ export interface Extracted {
   readonly publishedAt: Date | null;
   readonly lede: string;
   readonly body: string;
+  /** Absolute http(s) URL of the page's social-share image (og:image / twitter:image), if any. */
+  readonly imageUrl: string | null;
   readonly titleKey: string | null;
   readonly textHash: string | null;
   /** null = usable article */
@@ -34,9 +36,49 @@ export function decodeEntities(s: string): string {
 
 const squash = (s: string) => decodeEntities(s).replace(/\s+/g, " ").trim();
 
+/**
+ * Paywall, cookie and sign-up banners that sit in ordinary <p> tags. Left in, they become the "lede", poison the
+ * embedding text (every paywalled article of one site shares it) and show up as the summary in the UI.
+ */
+const BOILERPLATE = new RegExp(
+  [
+    "you have reached your maximum number",
+    "you(?:'|’)ve used all of your gift articles",
+    "(?:subscribe|sign in|log in|register) to (?:continue|keep|read|unlock)",
+    "already a (?:subscriber|member)",
+    "this (?:content|article|story) is (?:only )?(?:available )?for (?:subscribers|members)",
+    "create a free account to",
+    "to continue reading",
+    "we use cookies",
+    "accept (?:all )?cookies",
+    "enable javascript",
+    "your browser (?:is not supported|does not support)",
+    "all rights reserved",
+  ].join("|"),
+  "i",
+);
+export const isBoilerplate = (p: string): boolean => BOILERPLATE.test(p);
+
+/** First clean paragraph of a stored body, for display when the stored lede is boilerplate. */
+export const cleanLede = (lede: string | null, body: string | null, max = 320): string | null => {
+  if (lede && !isBoilerplate(lede)) return lede.slice(0, max);
+  const para = (body ?? "").split(/\n\n+/).find((p) => p.length >= MIN_PARAGRAPH_CHARS && !isBoilerplate(p));
+  return para ? para.slice(0, max) : null;
+};
+
+const absoluteImage = (raw: string | undefined, base: string | undefined): string | null => {
+  if (!raw) return null;
+  try {
+    const u = new URL(decodeEntities(raw.trim()), base);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
+  } catch {
+    return null;
+  }
+};
+
 export const titleKey = (title: string): string => title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
-async function run(html: Uint8Array): Promise<Extracted> {
+async function run(html: Uint8Array, baseUrl?: string): Promise<Extracted> {
   const meta: Record<string, string> = {};
   let lang: string | null = null;
   let titleTag = "";
@@ -67,7 +109,7 @@ async function run(html: Uint8Array): Promise<Extracted> {
         el.onEndTag(() => {
           const p = squash(cur ?? "");
           cur = null;
-          if (p.length >= MIN_PARAGRAPH_CHARS) paragraphs.push(p);
+          if (p.length >= MIN_PARAGRAPH_CHARS && !isBoilerplate(p)) paragraphs.push(p);
         });
       },
       text: (t) => void (cur !== null && (cur += t.text)),
@@ -96,14 +138,15 @@ async function run(html: Uint8Array): Promise<Extracted> {
     publishedAt,
     lede,
     body,
+    imageUrl: absoluteImage(meta["og:image"] ?? meta["og:image:url"] ?? meta["twitter:image"] ?? meta["twitter:image:src"], baseUrl),
     titleKey: title ? titleKey(title) : null,
     textHash: body ? new Bun.CryptoHasher("sha1").update(body).digest("hex") : null,
     rejectReason,
   };
 }
 
-export const extract = (html: Uint8Array): Effect.Effect<Extracted, ExtractError> =>
+export const extract = (html: Uint8Array, baseUrl?: string): Effect.Effect<Extracted, ExtractError> =>
   Effect.tryPromise({
-    try: () => run(html),
+    try: () => run(html, baseUrl),
     catch: (cause) => new ExtractError({ message: "HTML extraction failed", cause }),
   }).pipe(Effect.withSpan("extract"));

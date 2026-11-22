@@ -7,6 +7,7 @@ import { parseAllSides, parseFamilies, withAllSides } from "./outlets/consensus"
 import { parseOutlets } from "./outlets/csv";
 import { Outlets } from "./repos/Outlets";
 import { defaultParams, paramsConfig, type ClusterParams } from "./cluster/params";
+import { Backfill } from "./pipeline/Backfill";
 import { Cluster } from "./pipeline/Cluster";
 import { Embed } from "./pipeline/Embed";
 import { Ingest } from "./pipeline/Ingest";
@@ -146,6 +147,23 @@ const serveCmd = Command.make(
   ({ port }) => Layer.launch(serve(port)),
 ).pipe(Command.withDescription("Serve the stories API and the one-page UI"));
 
+const imagesCmd = Command.make(
+  "images",
+  { limit: Flag.Int("limit").pipe(Flag.withDescription("Max pages to fetch"), Flag.withDefault(800)) },
+  ({ limit }) =>
+    Effect.gen(function* () {
+      const [looked, found] = yield* (yield* Backfill).images(limit);
+      yield* Console.log(`looked at ${looked} pages, found ${found} images`);
+    }),
+).pipe(Command.withDescription("Backfill share images for articles in stories (new articles get theirs at fetch time)"));
+
+const cleanCmd = Command.make("clean", {}, () =>
+  Effect.gen(function* () {
+    const [fixed, rejected] = yield* (yield* Backfill).cleanLedes;
+    yield* Console.log(`fixed ${fixed} paywall ledes, rejected ${rejected} paywalled stubs; now run: embed, then cluster --rebuild`);
+  }),
+).pipe(Command.withDescription("Repair paywall/cookie-banner ledes stored before extraction filtered them"));
+
 const outletsImportCmd = Command.make(
   "import",
   {
@@ -186,7 +204,7 @@ const outletsCmd = Command.make("outlets").pipe(Command.withDescription("Outlet 
 
 export const news = Command.make("news").pipe(
   Command.withDescription("orbit news pipeline"),
-  Command.withSubcommands([migrateCmd, workerCmd, ingestCmd, enqueueCmd, embedCmd, clusterCmd, storiesCmd, serveCmd, outletsCmd, statusCmd]),
+  Command.withSubcommands([migrateCmd, workerCmd, ingestCmd, enqueueCmd, embedCmd, clusterCmd, storiesCmd, serveCmd, imagesCmd, cleanCmd, outletsCmd, statusCmd]),
 );
 
 export const cli = news.pipe(Command.run({ version: "0.2.0" }));

@@ -52,7 +52,7 @@ export class Fetcher extends Context.Service<Fetcher, {
           Effect.timeout("20 seconds"),
           Effect.mapError(() => fail("network: body", true)),
         );
-        const x = yield* extract(new Uint8Array(bytes, 0, Math.min(bytes.byteLength, MAX_BYTES)));
+        const x = yield* extract(new Uint8Array(bytes, 0, Math.min(bytes.byteLength, MAX_BYTES)), job.url);
         yield* articles.save(job, x);
         return (x.rejectReason ?? "ok") as Outcome;
       });

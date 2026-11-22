@@ -17,8 +17,8 @@ export class Articles extends Context.Service<Articles, {
         yield* sql.withTransaction(
           Effect.gen(function* () {
             yield* sql`
-              insert into articles (url, domain, sitename, title, lede, body, title_key, text_hash, seen_at, published_at, reject_reason)
-              values (${job.url}, ${job.domain}, ${x.sitename}, ${x.title}, ${x.lede}, ${x.body}, ${x.titleKey}, ${x.textHash}, ${job.seenAt}, ${x.publishedAt}, ${x.rejectReason})
+              insert into articles (url, domain, sitename, title, lede, body, title_key, text_hash, image_url, seen_at, published_at, reject_reason)
+              values (${job.url}, ${job.domain}, ${x.sitename}, ${x.title}, ${x.lede}, ${x.body}, ${x.titleKey}, ${x.textHash}, ${x.imageUrl}, ${job.seenAt}, ${x.publishedAt}, ${x.rejectReason})
               on conflict (url) do nothing`;
             yield* sql`update urls set fetch_status = 'ok', last_status = ${x.rejectReason ?? "ok"}, updated_at = now() where url = ${job.url}`;
           }),

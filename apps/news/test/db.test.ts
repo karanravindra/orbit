@@ -11,7 +11,7 @@ import { dbUp, rolledBack } from "./helpers";
 // Everything runs in one transaction that is rolled back, so it leaves no rows behind. Skipped when the DB is down.
 const Live = Layer.mergeAll(Urls.layer, Articles.layer);
 
-const extracted: Extracted = { title: "T", sitename: null, publishedAt: null, lede: "l", body: "b", titleKey: "t", textHash: "h", rejectReason: null };
+const extracted: Extracted = { title: "T", sitename: null, publishedAt: null, lede: "l", body: "b", titleKey: "t", textHash: "h", imageUrl: null, rejectReason: null };
 
 test.skipIf(!dbUp)("ledger + article queries match the schema", async () => {
   const url = `https://smoke.test/${crypto.randomUUID()}`;

@@ -7,6 +7,7 @@ import { PgLive } from "./db/Db";
 import { Embedder } from "./embed/Embedder";
 import { Gdelt } from "./gdelt/Gdelt";
 import { PoliteClient } from "./http/PoliteClient";
+import { Backfill } from "./pipeline/Backfill";
 import { Cluster } from "./pipeline/Cluster";
 import { Embed } from "./pipeline/Embed";
 import { Fetcher } from "./pipeline/Fetcher";
@@ -35,6 +36,7 @@ const Leaves = Layer.mergeAll(Urls.layer, Articles.layer, Embeddings.layer, Stor
 );
 
 const AppLayer = Schedulers.layer.pipe(
+  Layer.provideMerge(Backfill.layer),
   Layer.provideMerge(Cluster.layer),
   Layer.provideMerge(Embed.layer),
   Layer.provideMerge(Ingest.layer),
