@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, type Scope } from "effect";
+import { Config, Context, Effect, Layer, type Scope } from "effect";
 import { paramsConfig } from "../cluster/params";
 import { Cluster } from "../pipeline/Cluster";
 import { Embed } from "../pipeline/Embed";
@@ -54,6 +54,8 @@ export class Schedulers extends Context.Service<Schedulers, {
         yield* every("news-cluster", 2 * MIN, {}, () => cluster.run(params));
         yield* every("news-topics", 2 * MIN, {}, () => topics.run());
         yield* every("news-reports", MIN, {}, () => reports.run());
+        // Opt-in: the writer spends GPU time, so it only runs when SUMMARIES=on.
+        if (!(yield* Effect.orDie(Config.Boolean("SUMMARIES").pipe(Config.withDefault(false))))) return yield* Effect.log("summary writer is off (set SUMMARIES=on to enable)");
         // Load the model once now: Ollama needs seconds to start it, which is why summaries are written ahead of time, never on a request.
         yield* Effect.forkScoped(summarizer.warm);
         yield* every("news-summaries", 20_000, {}, () => summaries.run());

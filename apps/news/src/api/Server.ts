@@ -1,6 +1,6 @@
 import { BunHttpServer } from "@effect/platform-bun";
 import { PgClient } from "@effect/sql-pg";
-import { Effect, Layer, Option, Stream } from "effect";
+import { Config, Effect, Layer, Option, Stream } from "effect";
 import { HttpRouter, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder, HttpApiError } from "effect/http-api";
 import { STORIES_CHANGED } from "../pipeline/Cluster";
@@ -14,6 +14,7 @@ const StoriesHandlers = HttpApiBuilder.group(
   "stories",
   Effect.fn(function* (handlers) {
     const feed = yield* Feed;
+    const writerOn = yield* Effect.orDie(Config.Boolean("SUMMARIES").pipe(Config.withDefault(false)));
     const clamp = (n: number | undefined, dflt: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.trunc(n ?? dflt)));
     return handlers.handleAll({
       list: ({ query }) =>
@@ -34,8 +35,8 @@ const StoriesHandlers = HttpApiBuilder.group(
           Effect.flatMap(Option.match({ onNone: () => Effect.fail(new HttpApiError.NotFound()), onSome: Effect.succeed })),
           // Summaries are written ahead of time, never on a request (the model needs seconds to load). A story opened without
           // one jumps the writer's queue; the page shows the lede meanwhile and is told over /events when it is ready.
-          Effect.tap((d) => (d.summary === null && d.outlets >= 3 ? feed.wantSummary(d.id) : Effect.void)),
-          Effect.map((d) => ({ ...d, summaryPending: d.summary === null && d.outlets >= 3 })),
+          Effect.tap((d) => (writerOn && d.summary === null && d.outlets >= 3 ? feed.wantSummary(d.id) : Effect.void)),
+          Effect.map((d) => ({ ...d, summaryPending: writerOn && d.summary === null && d.outlets >= 3 })),
         ),
     });
   }),
