@@ -1,0 +1,7 @@
+{
+  "extends": "@orbit/tsconfig/bun.json",
+  "compilerOptions": {
+    "jsxImportSource": "hono/jsx"
+  },
+  "include": ["src", "test"]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@orbit/holykhao",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "migrate": "bun src/main.ts migrate",
+    "status": "bun src/main.ts status",
+    "serve": "bun src/main.ts serve",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.1.5",
+    "@effect/sql-sqlite-bun": "4.1.5",
+    "effect": "4.1.5",
+    "hono": "latest"
+  },
+  "devDependencies": {
+    "@orbit/tsconfig": "workspace:*"
+  }
+}
