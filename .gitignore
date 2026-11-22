@@ -35,3 +35,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # third-party ratings pulled locally for cross-checking; not ours to redistribute
 apps/news/data/allsides.csv
+
+# holykhao local data (sqlite file, image cache)
+apps/holykhao/data/
