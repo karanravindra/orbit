@@ -57,7 +57,8 @@ export function decide(exit: Exit.Exit<unknown, FetchError | DomainCooldown | Ex
 
 export class FetchQueue extends Context.Service<FetchQueue, {
   /** Add jobs (deduped by url). Returns how many were submitted. */
-  enqueue(jobs: ReadonlyArray<UrlJob>): Effect.Effect<number>;
+  /** `newestFirst` puts the jobs ahead of the backlog, so fresh slices are fetched before old ones. */
+  enqueue(jobs: ReadonlyArray<UrlJob>, newestFirst?: boolean): Effect.Effect<number>;
   /** Re-enqueue everything the ledger still lists as unfinished. Idempotent; the safety net for crashes and Redis loss. */
   requeueUnfinished: Effect.Effect<number>;
   /** Run the fetch worker until the scope closes. */
@@ -79,11 +80,11 @@ export class FetchQueue extends Context.Service<FetchQueue, {
         removeOnFail: { age: 7 * 86_400 },
       };
 
-      const enqueue = Effect.fn("FetchQueue.enqueue")(function* (jobs: ReadonlyArray<UrlJob>) {
+      const enqueue = Effect.fn("FetchQueue.enqueue")(function* (jobs: ReadonlyArray<UrlJob>, newestFirst = false) {
         // Shuffle so a hot domain's URLs aren't adjacent: workers waiting on its rate limit would starve the rest.
         for (const chunk of Arr.chunksOf(shuffled(jobs), CHUNK)) {
           yield* Effect.promise(() =>
-            queue.addBulk(chunk.map((j) => ({ name: "fetch", data: { url: j.url, domain: j.domain, seenAt: j.seenAt.toISOString() }, opts: { ...opts, jobId: jobId(j.url) } }))),
+            queue.addBulk(chunk.map((j) => ({ name: "fetch", data: { url: j.url, domain: j.domain, seenAt: j.seenAt.toISOString() }, opts: { ...opts, jobId: jobId(j.url), lifo: newestFirst } }))),
           );
         }
         return jobs.length;

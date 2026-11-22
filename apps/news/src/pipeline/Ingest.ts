@@ -33,7 +33,7 @@ export class Ingest extends Context.Service<Ingest, {
           const fresh = yield* urls.ingestSlice(ts, rows.value);
           // Insert-then-enqueue is a dual write: a crash in between leaves rows pending. `requeueUnfinished`
           // (run at worker start / `enqueue`) closes that gap.
-          yield* fetchQueue.enqueue(fresh);
+          yield* fetchQueue.enqueue(fresh, true);
           total += fresh.length;
           yield* Effect.log(`${ts.toISOString()} ${rows.value.length} rows, ${fresh.length} new urls queued`);
         }
