@@ -1,0 +1,8 @@
+pattern,family,inherit_from,unrated_only,priority
+^(smh|theage|brisbanetimes|watoday)\.com\.au$,Nine Entertainment,,false,10
+\.iheart\.com$,iHeartMedia stations,,true,20
+^[kw][a-z]{3}(fm|am)?\.org$,NPR member stations,npr.org,true,30
+publicradio\.org$|publicmedia\.org$|^news\.w[a-z]{2,4}\.org$,NPR member stations,npr.org,true,30
+^\d{3,4}[a-z0-9]*\.com$|^[a-z]+\d{3,4}[a-z]*\.com$|(fm|radio)\.com$,Local radio stations,,true,40
+\.com\.au$,Australian regional papers,,true,90
+\.co\.uk$,UK regional papers,,true,90

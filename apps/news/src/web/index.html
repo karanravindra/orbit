@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stories</title>
+<style>
+  :root {
+    --bg: #fafaf9; --card: #fff; --ink: #1c1917; --muted: #78716c; --line: #e7e5e4;
+    --left: #2563eb; --center: #a8a29e; --right: #dc2626; --unrated: #d6d3d1;
+    --warn: #b45309; --warn-bg: #fef3c7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151413; --card: #1f1d1b; --ink: #f5f5f4; --muted: #a8a29e; --line: #33302d;
+      --left: #60a5fa; --center: #78716c; --right: #f87171; --unrated: #44403c;
+      --warn: #fbbf24; --warn-bg: #3b2f0b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 20px; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; }
+  h1 a { color: inherit; text-decoration: none; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+  .filters button, .filters select { font: inherit; font-size: 14px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); cursor: pointer; }
+  .filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .card { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; color: inherit; text-decoration: none; }
+  a.card:hover { border-color: var(--muted); }
+  .card h2 { font-size: 18px; margin: 0 0 6px; line-height: 1.3; }
+  .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 12px 0 6px; background: var(--unrated); }
+  .bar i { display: block; height: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+  .legend b { color: var(--ink); font-weight: 600; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); margin-left: 8px; vertical-align: middle; }
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+  @media (max-width: 700px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  .cols > *, .card, .src { min-width: 0; overflow-wrap: anywhere; }
+  .col h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; margin: 0 0 8px; color: var(--muted); }
+  .col h3 .dot { width: 10px; height: 10px; }
+  .src { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .src .outlet { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  .src a { color: inherit; font-weight: 600; text-decoration: none; display: block; margin: 2px 0 4px; }
+  .src a:hover { text-decoration: underline; }
+  .src p { margin: 0; font-size: 13px; color: var(--muted); }
+  .tag { font-size: 11px; padding: 0 6px; border: 1px solid var(--line); border-radius: 4px; }
+  .tag.low { color: var(--warn); border-color: var(--warn); }
+  .empty, .err { color: var(--muted); padding: 40px 0; text-align: center; }
+  .back { display: inline-block; margin-bottom: 14px; color: var(--muted); text-decoration: none; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><a href="#/">Stories</a></h1>
+    <div class="filters" id="filters"></div>
+  </header>
+  <div id="app"></div>
+</main>
+<script>
+const app = document.getElementById("app");
+const filtersEl = document.getElementById("filters");
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : "#");
+
+let state = { sort: "coverage", blindspot: false, minOutlets: 3 };
+try { Object.assign(state, JSON.parse(localStorage.getItem("news:filters") || "{}")); } catch {}
+const save = () => { try { localStorage.setItem("news:filters", JSON.stringify(state)); } catch {} };
+
+const ago = (iso) => {
+  const m = Math.max(0, (Date.now() - new Date(iso)) / 60000);
+  if (m < 60) return Math.round(m) + "m ago";
+  if (m < 1440) return Math.round(m / 60) + "h ago";
+  return Math.round(m / 1440) + "d ago";
+};
+
+const BUCKETS = [
+  ["left", "Left", "--left"], ["leanLeft", "Lean left", "--left"], ["center", "Center", "--center"],
+  ["leanRight", "Lean right", "--right"], ["right", "Right", "--right"],
+];
+const sideOf = (b) => (b === "left" || b === "lean-left" ? "left" : b === "right" || b === "lean-right" ? "right" : b === "center" ? "center" : "unrated");
+
+function biasBar(b) {
+  const rated = BUCKETS.reduce((n, [k]) => n + b[k], 0);
+  const all = rated + b.unrated;
+  if (!rated) return `<div class="bar" role="img" aria-label="No ratings available"></div><div class="legend"><span>No rated outlets yet (${all} unrated)</span></div>`;
+  const seg = (n, color, op) => n ? `<i style="width:${(n / rated) * 100}%;background:var(${color});opacity:${op}"></i>` : "";
+  const bar = seg(b.left, "--left", 1) + seg(b.leanLeft, "--left", .55) + seg(b.center, "--center", 1) + seg(b.leanRight, "--right", .55) + seg(b.right, "--right", 1);
+  const leftN = b.left + b.leanLeft, rightN = b.right + b.leanRight;
+  const legend = `<span><span class="dot" style="background:var(--left)"></span><b>${leftN}</b> left</span>` +
+    `<span><span class="dot" style="background:var(--center)"></span><b>${b.center}</b> center</span>` +
+    `<span><span class="dot" style="background:var(--right)"></span><b>${rightN}</b> right</span>` +
+    `<span title="Outlets without a rating are left out of the bar">based on ${rated} of ${all} outlets</span>`;
+  return `<div class="bar" role="img" aria-label="Coverage by political lean, rated outlets only">${bar}</div><div class="legend">${legend}</div>`;
+}
+
+const counts = (s) => `<span title="Owner groups: 40 stations carrying one wire story count once">${s.outlets} outlets</span><span title="Distinct texts: syndicated copies count once">${s.texts} distinct ${s.texts === 1 ? "article" : "articles"}</span>`;
+
+const blindspotBadge = (s) => s.blindspot ? `<span class="badge" title="Almost no ${s.blindspot}-leaning outlets covered this">${s.blindspot === "left" ? "Left" : "Right"} blindspot</span>` : "";
+
+function filtersUi() {
+  filtersEl.innerHTML = `
+    <select id="sort" aria-label="Sort"><option value="coverage">Most coverage</option><option value="recent">Most recent</option></select>
+    <select id="min" aria-label="Minimum outlets">${[2, 3, 5, 8].map((n) => `<option value="${n}">${n}+ outlets</option>`).join("")}</select>
+    <button id="blind" aria-pressed="${state.blindspot}">Blindspots</button>`;
+  const sort = document.getElementById("sort"), min = document.getElementById("min"), blind = document.getElementById("blind");
+  sort.value = state.sort; min.value = String(state.minOutlets);
+  sort.onchange = () => { state.sort = sort.value; save(); route(); };
+  min.onchange = () => { state.minOutlets = +min.value; save(); route(); };
+  blind.onclick = () => { state.blindspot = !state.blindspot; save(); route(); };
+}
+
+async function api(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(r.status === 404 ? "Not found" : "Request failed (" + r.status + ")");
+  return r.json();
+}
+
+async function list() {
+  filtersEl.style.display = "";
+  filtersUi();
+  app.innerHTML = '<p class="empty">Loading…</p>';
+  const q = new URLSearchParams({ limit: "40", minOutlets: String(state.minOutlets), sort: state.sort, blindspot: String(state.blindspot) });
+  const stories = await api("/stories?" + q);
+  if (!stories.length) { app.innerHTML = '<p class="empty">No stories match.</p>'; return; }
+  app.innerHTML = stories.map((s) => `
+    <a class="card" href="#/story/${s.id}">
+      <h2>${esc(s.headline)}${blindspotBadge(s)}</h2>
+      <div class="meta">${counts(s)}<span>updated ${ago(s.lastSeen)}</span></div>
+      ${biasBar(s.bias)}
+    </a>`).join("");
+}
+
+async function detail(id) {
+  filtersEl.style.display = "none";
+  app.innerHTML = '<p class="empty">Loading…</p>';
+  const s = await api("/stories/" + id);
+  const groups = { left: [], center: [], right: [], unrated: [] };
+  // identical headlines from one owner group (40 stations running one wire story) collapse into one card
+  const seen = new Map();
+  for (const a of s.sources) {
+    const key = (a.family || a.domain) + "|" + a.title;
+    const hit = seen.get(key);
+    if (hit) { hit.more.push(a.outlet); continue; }
+    a.more = [];
+    seen.set(key, a);
+    groups[sideOf(a.bias)].push(a);
+  }
+  const col = (key, title, color) => `
+    <section class="col"><h3>${color ? `<span class="dot" style="background:var(${color})"></span>` : ""}${title} · ${groups[key].length}</h3>
+      ${groups[key].map((a) => `
+        <div class="src">
+          <div class="outlet"><span>${esc(a.outlet)}</span><span>${a.factuality === "low" ? '<span class="tag low">low factuality</span> ' : ""}${a.contested ? '<span class="tag" title="Rating sources disagree">contested</span> ' : ""}${a.inherited ? '<span class="tag" title="Rating borrowed from ' + esc(a.family) + '">via ' + esc(a.family) + "</span> " : ""}${a.bias && a.bias.startsWith("lean") ? '<span class="tag">' + esc(a.bias) + "</span>" : ""}</span></div>
+          <a href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>
+          ${a.more.length ? `<p title="${esc(a.more.join(", "))}">+ ${a.more.length} more ${esc(a.family || "outlets")} ran this</p>` : ""}
+          ${a.lede ? `<p>${esc(a.lede.slice(0, 160))}${a.lede.length > 160 ? "…" : ""}</p>` : ""}
+        </div>`).join("") || '<p class="empty" style="padding:8px 0;text-align:left">None</p>'}
+    </section>`;
+  app.innerHTML = `
+    <a class="back" href="#/">← All stories</a>
+    <div class="card">
+      <h2 style="font-size:22px">${esc(s.headline)}${blindspotBadge(s)}</h2>
+      <div class="meta">${counts(s)}<span>${s.articles} links</span><span>first seen ${ago(s.firstSeen)}</span><span>updated ${ago(s.lastSeen)}</span></div>
+      ${biasBar(s.bias)}
+    </div>
+    <div class="cols">${col("left", "Left", "--left")}${col("center", "Center", "--center")}${col("right", "Right", "--right")}</div>
+    ${groups.unrated.length ? `<details style="margin-top:20px"><summary style="cursor:pointer;color:var(--muted)">${groups.unrated.length} unrated outlets (mostly local or syndicated copies)</summary><div class="cols" style="grid-template-columns:minmax(0,1fr)">${col("unrated", "Unrated outlets", "--unrated")}</div></details>` : ""}`;
+  document.title = s.headline;
+}
+
+async function route() {
+  document.title = "Stories";
+  const m = location.hash.match(/^#\/story\/(\d+)$/);
+  try { await (m ? detail(m[1]) : list()); }
+  catch (e) { app.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>
