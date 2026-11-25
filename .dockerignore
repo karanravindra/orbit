@@ -1,0 +1,11 @@
+**/node_modules
+.git
+.github
+.claude
+**/.env
+**/test
+apps/holykhao/*
+!apps/holykhao/package.json
+apps/news/data/allsides.csv
+**/*.md
+!apps/news/data/README.md

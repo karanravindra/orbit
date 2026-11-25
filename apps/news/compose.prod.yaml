@@ -1,0 +1,65 @@
+# Homelab stack. Copy this file and a filled-in .env (see .env.prod.example) to the server, then:
+#   docker compose -f compose.prod.yaml pull && docker compose -f compose.prod.yaml up -d
+x-app: &app
+  image: ghcr.io/${GHCR_OWNER}/orbit-news:${NEWS_TAG:-latest}
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    DATABASE_URL: postgres://news:${POSTGRES_PASSWORD}@db:5432/news
+    REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+  extra_hosts: ["host.docker.internal:host-gateway"] # reach Ollama running on the host
+  depends_on:
+    db: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["migrate"]
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  web:
+    <<: *app
+    command: ["serve"]
+    ports: ["${WEB_PORT:-3000}:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: news
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: news
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U news"]
+      interval: 5s
+      retries: 30
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      retries: 30
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+volumes:
+  pgdata:
+  redisdata:
