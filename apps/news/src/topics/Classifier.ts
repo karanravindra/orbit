@@ -62,7 +62,7 @@ export class Classifier extends Context.Service<Classifier, {
     Effect.gen(function* () {
       const cfg = yield* Config.all({
         baseUrl: Config.String("TOPIC_BASE_URL").pipe(Config.withDefault("http://localhost:11434")),
-        model: Config.String("TOPIC_MODEL").pipe(Config.withDefault("gemma4:e2b-mlx")),
+        model: Config.String("TOPIC_MODEL").pipe(Config.withDefault("lfm3")),
       });
       return yield* Classifier.make(cfg);
     }),

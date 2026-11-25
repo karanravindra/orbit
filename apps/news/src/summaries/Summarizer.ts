@@ -52,7 +52,7 @@ export class Summarizer extends Context.Service<Summarizer, {
     Effect.gen(function* () {
       const cfg = yield* Config.all({
         baseUrl: Config.String("SUMMARY_BASE_URL").pipe(Config.withDefault("http://localhost:11434")),
-        model: Config.String("SUMMARY_MODEL").pipe(Config.withDefault("gemma4:e2b-mlx")),
+        model: Config.String("SUMMARY_MODEL").pipe(Config.withDefault("lfm3")),
         keepAlive: Config.String("SUMMARY_KEEP_ALIVE").pipe(Config.withDefault("30m")),
       });
       return yield* Summarizer.make(cfg);

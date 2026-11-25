@@ -12,7 +12,7 @@ Roll back by setting `NEWS_TAG=sha-<old>` in `.env` and running `up -d` again.
 1. Copy `apps/news/compose.prod.yaml` and `apps/news/.env.prod.example` (as `.env`) to a folder on the server; set the passwords.
 2. Let the server pull private images: `echo $GHCR_PAT | docker login ghcr.io -u <user> --password-stdin`
    (a classic PAT with `read:packages`), or make the package public in GitHub's package settings.
-3. Run Ollama on the host (or point the `*_BASE_URL` vars elsewhere) and pull the models in `.env`.
+3. Run Ollama on the host (or point `EMBED_BASE_URL`, `TOPIC_BASE_URL` and `SUMMARY_BASE_URL` elsewhere) and pull the models in `.env`.
 4. `docker compose -f compose.prod.yaml run --rm web outlets import` once to load the outlet ratings (re-run after editing the CSVs).
 5. `docker compose -f compose.prod.yaml up -d`. The UI is on `WEB_PORT` (default 3000). There is no auth or TLS, so put it behind
    Tailscale or a reverse proxy.
